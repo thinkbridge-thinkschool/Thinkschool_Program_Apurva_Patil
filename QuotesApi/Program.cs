@@ -80,5 +80,6 @@ app.UseSwagger();
 app.UseSwaggerUI();
 
 app.MapQuoteEndpoints();
+app.MapCollectionEndpoints();
 
 app.Run();

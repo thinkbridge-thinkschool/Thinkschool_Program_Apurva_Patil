@@ -1,7 +1,12 @@
 using QuotesApi.Models;
 using QuotesApi.Repositories;
+using QuotesApi.Services;
 
 namespace QuotesApi.Extensions;
+
+// Request body types for collection endpoints
+record CreateCollectionRequest(string Name, int OwnerId);
+record AddQuoteRequest(int QuoteId);
 
 public static class EndpointExtensions
 {
@@ -113,5 +118,142 @@ public static class EndpointExtensions
         return deleted
             ? Results.NoContent()
             : Results.NotFound(new { error = "Quote not found" });
+    }
+
+    // =========================================================================
+    // Collection Endpoints
+    // =========================================================================
+
+    /// <summary>
+    /// Map all Collection API endpoints
+    /// </summary>
+    public static WebApplication MapCollectionEndpoints(this WebApplication app)
+    {
+        var group = app.MapGroup("/api/collections")
+            .WithName("Collections");
+
+        // POST /api/collections - Create a new collection
+        group.MapPost("/", CreateCollection)
+            .WithName("CreateCollection")
+            .WithDescription("Create a new collection");
+
+        // POST /api/collections/{id}/items - Add a quote to a collection
+        group.MapPost("/{id}/items", AddQuoteToCollection)
+            .WithName("AddQuoteToCollection")
+            .WithDescription("Add a quote to a collection");
+
+        // DELETE /api/collections/{id}/items/{quoteId} - Remove a quote from a collection
+        group.MapDelete("/{id}/items/{quoteId}", RemoveQuoteFromCollection)
+            .WithName("RemoveQuoteFromCollection")
+            .WithDescription("Remove a quote from a collection");
+
+        return app;
+    }
+
+    /// <summary>
+    /// POST /api/collections - Create a new collection
+    /// Body: { "name": "string", "ownerId": 1 }
+    /// </summary>
+    private static async Task<IResult> CreateCollection(
+        CreateCollectionRequest request,
+        ICollectionRepository repository,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(request.Name))
+        {
+            return Results.ValidationProblem(
+                new Dictionary<string, string[]>
+                {
+                    ["name"] = new[] { "Name is required." }
+                });
+        }
+
+        if (request.OwnerId < 1)
+        {
+            return Results.ValidationProblem(
+                new Dictionary<string, string[]>
+                {
+                    ["ownerId"] = new[] { "OwnerId must be a positive number." }
+                });
+        }
+
+        try
+        {
+            var collection = new Collection(request.Name, request.OwnerId);
+            var created = await repository.AddAsync(collection, cancellationToken);
+            return Results.Created($"/api/collections/{created.Id}", created);
+        }
+        catch (ArgumentException ex)
+        {
+            return Results.ValidationProblem(
+                new Dictionary<string, string[]>
+                {
+                    ["name"] = new[] { ex.Message }
+                });
+        }
+    }
+
+    /// <summary>
+    /// POST /api/collections/{id}/items - Add a quote to a collection
+    /// Body: { "quoteId": 1 }
+    /// </summary>
+    private static async Task<IResult> AddQuoteToCollection(
+        int id,
+        AddQuoteRequest request,
+        ICollectionRepository repository,
+        IClock clock,
+        CancellationToken cancellationToken)
+    {
+        if (id < 1)
+            return Results.BadRequest(new { error = "Invalid collection ID." });
+
+        if (request.QuoteId < 1)
+            return Results.BadRequest(new { error = "Invalid quote ID." });
+
+        var collection = await repository.GetByIdAsync(id, cancellationToken);
+        if (collection is null)
+            return Results.NotFound(new { error = "Collection not found." });
+
+        try
+        {
+            collection.AddItem(request.QuoteId, clock.UtcNow);
+            await repository.SaveChangesAsync(cancellationToken);
+            return Results.Ok(collection);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Results.Problem(ex.Message, statusCode: StatusCodes.Status400BadRequest);
+        }
+    }
+
+    /// <summary>
+    /// DELETE /api/collections/{id}/items/{quoteId} - Remove a quote from a collection
+    /// </summary>
+    private static async Task<IResult> RemoveQuoteFromCollection(
+        int id,
+        int quoteId,
+        ICollectionRepository repository,
+        CancellationToken cancellationToken)
+    {
+        if (id < 1)
+            return Results.BadRequest(new { error = "Invalid collection ID." });
+
+        if (quoteId < 1)
+            return Results.BadRequest(new { error = "Invalid quote ID." });
+
+        var collection = await repository.GetByIdAsync(id, cancellationToken);
+        if (collection is null)
+            return Results.NotFound(new { error = "Collection not found." });
+
+        try
+        {
+            collection.RemoveItem(quoteId);
+            await repository.SaveChangesAsync(cancellationToken);
+            return Results.NoContent();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Results.Problem(ex.Message, statusCode: StatusCodes.Status400BadRequest);
+        }
     }
 }
