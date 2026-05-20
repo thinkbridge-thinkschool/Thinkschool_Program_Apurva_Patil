@@ -1,63 +1,91 @@
-using Microsoft.EntityFrameworkCore;
+
+using System.Text;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+
+
+
 using QuotesApi.Data;
-using QuotesApi.Repositories;
 using QuotesApi.Extensions;
 using QuotesApi.Services;
 
+
 var builder = WebApplication.CreateBuilder(args);
+
+// ============================================================================
+// SERVICES
+// ============================================================================
+
 builder.Services.AddEndpointsApiExplorer();
+
 builder.Services.AddSwaggerGen();
-
-// ============================================================================
-// SERVICES CONFIGURATION
-// ============================================================================
-
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddLogging();
 builder.Services.AddSingleton<IClock, SystemClock>();
-
 builder.Services.AddTransient<IGuidService, GuidService>();
 
-var app = builder.Build();
+// Register TokenService so endpoints can inject it
+builder.Services.AddScoped<ITokenService, TokenService>();
+
+// ── JWT Authentication ────────────────────────────────────────────────────
+// This tells ASP.NET Core: "validate incoming Bearer tokens using these rules"
+var jwtKey = builder.Configuration["Jwt:Key"]!;
+
+builder.Services
+    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer           = true,
+            ValidateAudience         = true,
+            ValidateLifetime         = true,   // rejects expired tokens → 401
+            ValidateIssuerSigningKey = true,
+            ValidIssuer              = builder.Configuration["Jwt:Issuer"],
+            ValidAudience            = builder.Configuration["Jwt:Audience"],
+            IssuerSigningKey         = new SymmetricSecurityKey(
+                                           Encoding.UTF8.GetBytes(jwtKey)),
+            ClockSkew                = TimeSpan.Zero, // no grace period on expiry
+        };
+    });
+
+builder.Services.AddAuthorization();
 
 // ============================================================================
 // MIDDLEWARE PIPELINE
 // ============================================================================
 
-// Exception handling middleware
+var app = builder.Build();
+
 app.UseExceptionHandler(exceptionHandlerApp =>
 {
     exceptionHandlerApp.Run(async context =>
     {
         context.Response.ContentType = "application/problem+json";
-        context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+        context.Response.StatusCode  = StatusCodes.Status500InternalServerError;
 
-        var exceptionHandlerPathFeature = context.Features.Get<IExceptionHandlerPathFeature>();
-        var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+        var feature = context.Features.Get<IExceptionHandlerPathFeature>();
+        var logger  = context.RequestServices.GetRequiredService<ILogger<Program>>();
 
-        logger.LogError(
-            exceptionHandlerPathFeature?.Error,
-            "Unhandled exception occurred at {Path}",
-            exceptionHandlerPathFeature?.Path);
+        logger.LogError(feature?.Error, "Unhandled exception at {Path}", feature?.Path);
 
-        var problemDetails = new ProblemDetails
+        await context.Response.WriteAsJsonAsync(new ProblemDetails
         {
-            Title = "An error occurred while processing your request.",
+            Title  = "An error occurred while processing your request.",
             Status = StatusCodes.Status500InternalServerError,
-            Type = "https://tools.ietf.org/html/rfc7231#section-6.6.1",
-        };
-
-        await context.Response.WriteAsJsonAsync(problemDetails);
+            Type   = "https://tools.ietf.org/html/rfc7231#section-6.6.1",
+        });
     });
 });
 
-// Apply migrations and seed database at startup
+// Apply migrations at startup
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<QuotesDbContext>();
-    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+    var logger    = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
 
     try
     {
@@ -72,13 +100,18 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
+app.UseSwagger();
+app.UseSwaggerUI();
+
+// ORDER MATTERS: Authentication must come before Authorization
+app.UseAuthentication();
+app.UseAuthorization();
+
 // ============================================================================
 // ENDPOINTS
 // ============================================================================
-app.UseSwagger();
 
-app.UseSwaggerUI();
-
+app.MapAuthEndpoints();    // POST /api/auth/register, /login, /refresh
 app.MapQuoteEndpoints();
 app.MapCollectionEndpoints();
 

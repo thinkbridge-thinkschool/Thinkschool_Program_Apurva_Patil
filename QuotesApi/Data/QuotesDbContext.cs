@@ -7,8 +7,10 @@ public class QuotesDbContext : DbContext
 {
     public QuotesDbContext(DbContextOptions<QuotesDbContext> options) : base(options) { }
 
-    public DbSet<Quote> Quotes => Set<Quote>();
-    public DbSet<Collection> Collections => Set<Collection>();
+    public DbSet<Quote>        Quotes        => Set<Quote>();
+    public DbSet<Collection>   Collections   => Set<Collection>();
+    public DbSet<User>         Users         => Set<User>();
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -28,9 +30,6 @@ public class QuotesDbContext : DbContext
             entity.Property(e => e.Name).IsRequired().HasMaxLength(80);
             entity.Property(e => e.OwnerId).IsRequired();
 
-            // CollectionItem is an owned type stored in its own table.
-            // The composite key (CollectionId, QuoteId) is a natural fit — each quote
-            // can only appear once per collection, so this pair is always unique.
             entity.OwnsMany(c => c.Items, item =>
             {
                 item.WithOwner().HasForeignKey("CollectionId");
@@ -40,11 +39,32 @@ public class QuotesDbContext : DbContext
                 item.HasKey("CollectionId", nameof(CollectionItem.QuoteId));
             });
 
-            // Tell EF Core to use the private _items backing field
-            // because Items is exposed as read-only IReadOnlyList<>
             entity.Navigation(c => c.Items)
                 .HasField("_items")
                 .UsePropertyAccessMode(PropertyAccessMode.Field);
+        });
+
+        // ── User ────────────────────────────────────────────────────────────
+        modelBuilder.Entity<User>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Email)
+                  .IsRequired()
+                  .HasMaxLength(256);
+            entity.HasIndex(e => e.Email)
+                  .IsUnique();          // no two users with same email
+            entity.Property(e => e.PasswordHash).IsRequired();
+        });
+
+        // ── RefreshToken ─────────────────────────────────────────────────────
+        modelBuilder.Entity<RefreshToken>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Token).IsRequired();
+            entity.HasIndex(e => e.Token).IsUnique();
+            entity.HasOne(e => e.User)
+                  .WithMany()
+                  .HasForeignKey(e => e.UserId);
         });
     }
 }

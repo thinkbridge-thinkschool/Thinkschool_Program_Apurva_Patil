@@ -29,15 +29,19 @@ public static class EndpointExtensions
             .WithDescription("Get a specific quote by ID");
 
         // POST /api/quotes - Create new quote
-        group.MapPost("/", CreateQuote)
-            .WithName("CreateQuote")
+       group.MapPost("/", CreateQuote)
+.RequireAuthorization()
+    .WithName("CreateQuote")
             .WithDescription("Create a new quote");
 
         // DELETE /api/quotes/{id} - Delete quote by ID
-        group.MapDelete("/{id}", DeleteQuote)
-            .WithName("DeleteQuote")
-            .WithDescription("Delete a quote by ID");
+        
 
+
+group.MapDelete("/{id}", DeleteQuote)
+    .RequireAuthorization()
+    .WithName("DeleteQuote")
+    .WithDescription("Delete a quote by ID");
         return app;
     }
 
