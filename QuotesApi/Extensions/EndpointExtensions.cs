@@ -82,43 +82,66 @@ public static class EndpointExtensions
     /// POST /api/quotes - Create a new quote
     /// Body: { "author": "string", "text": "string" }
     /// </summary>
-    private static async Task<IResult> CreateQuote(
-        Quote quote,
-        IQuoteRepository repository,
-        CancellationToken cancellationToken)
-    {
-        // Validate input
-        if (string.IsNullOrWhiteSpace(quote.Author) ||
-            string.IsNullOrWhiteSpace(quote.Text))
-        {
-            return Results.ValidationProblem(
-                new Dictionary<string, string[]>
-                {
-                    ["error"] = new[] { "Author and Text are required fields" }
-                });
-        }
+   
+   private static async Task<IResult> CreateQuote(
+    Quote quote,
+    IQuoteRepository repository,
+    CancellationToken cancellationToken)
+{
+    var result = Quote.Create(
+        quote.Author,
+        quote.Text);
 
-        var createdQuote = await repository.AddAsync(quote, cancellationToken);
-        return Results.Created($"/api/quotes/{createdQuote.Id}", createdQuote);
+    if (!result.Success)
+    {
+        return Results.ValidationProblem(
+            new Dictionary<string, string[]>
+            {
+                ["quote"] = new[] { result.Error! }
+            });
     }
+
+    var createdQuote = await repository.AddAsync(
+        result.Quote!,
+        cancellationToken);
+
+    return Results.Created(
+        $"/api/quotes/{createdQuote.Id}",
+        createdQuote);
+}
 
     /// <summary>
     /// DELETE /api/quotes/{id} - Delete a quote
     /// </summary>
     private static async Task<IResult> DeleteQuote(
-        int id,
-        IQuoteRepository repository,
-        CancellationToken cancellationToken)
+    int id,
+    IQuoteRepository repository,
+    CancellationToken cancellationToken)
+{
+    if (id < 1)
     {
-        if (id < 1)
-            return Results.BadRequest(new { error = "Invalid quote ID" });
-
-        var deleted = await repository.DeleteAsync(id, cancellationToken);
-
-        return deleted
-            ? Results.NoContent()
-            : Results.NotFound(new { error = "Quote not found" });
+        return Results.BadRequest(
+            new { error = "Invalid quote ID" });
     }
+
+    var quote = await repository.GetByIdAsync(
+        id,
+        cancellationToken);
+
+    if (quote is null)
+    {
+        return Results.NotFound(
+            new { error = "Quote not found" });
+    }
+
+    quote.SoftDelete();
+
+    await repository.SaveChangesAsync(
+        cancellationToken);
+
+    return Results.NoContent();
+}
+    
 
     // =========================================================================
     // Collection Endpoints
@@ -197,7 +220,7 @@ public static class EndpointExtensions
     /// POST /api/collections/{id}/items - Add a quote to a collection
     /// Body: { "quoteId": 1 }
     /// </summary>
-    private static async Task<IResult> AddQuoteToCollection(
+    private static async Task<IResult> AddQuoteToCollection (
         int id,
         AddQuoteRequest request,
         ICollectionRepository repository,
@@ -220,10 +243,10 @@ public static class EndpointExtensions
             await repository.SaveChangesAsync(cancellationToken);
             return Results.Ok(collection);
         }
-        catch (InvalidOperationException ex)
-        {
-            return Results.Problem(ex.Message, statusCode: StatusCodes.Status400BadRequest);
-        }
+       catch (OperationCanceledException)
+{
+    return Results.StatusCode(499);
+}
     }
 
     /// <summary>
@@ -251,9 +274,9 @@ public static class EndpointExtensions
             await repository.SaveChangesAsync(cancellationToken);
             return Results.NoContent();
         }
-        catch (InvalidOperationException ex)
-        {
-            return Results.Problem(ex.Message, statusCode: StatusCodes.Status400BadRequest);
-        }
+        catch (OperationCanceledException)
+{
+    return Results.StatusCode(499);
+}
     }
 }

@@ -71,4 +71,10 @@ public class QuoteRepository : IQuoteRepository
 
         return true;
     }
+    public async Task SaveChangesAsync(
+    CancellationToken cancellationToken)
+{
+    await _context.SaveChangesAsync(
+        cancellationToken);
+}
 }

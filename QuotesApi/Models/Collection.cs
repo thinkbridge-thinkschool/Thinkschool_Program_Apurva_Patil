@@ -31,6 +31,11 @@ public class Collection
         _items.Add(new CollectionItem(quoteId, addedAt));
     }
 
+    public void AddItem(int quoteId)
+{
+    AddItem(quoteId, DateTimeOffset.UtcNow);
+}
+
     public void RemoveItem(int quoteId)
     {
         var item = _items.FirstOrDefault(i => i.QuoteId == quoteId);
