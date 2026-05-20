@@ -18,7 +18,7 @@ var builder = WebApplication.CreateBuilder(args);
 // ============================================================================
 // SERVICES
 // ============================================================================
-
+builder.Services.AddSwaggerGen();
 builder.Services.AddEndpointsApiExplorer();
 
 builder.Services.AddSwaggerGen();
@@ -49,9 +49,10 @@ builder.Services
             IssuerSigningKey         = new SymmetricSecurityKey(
                                            Encoding.UTF8.GetBytes(jwtKey)),
             ClockSkew                = TimeSpan.Zero, // no grace period on expiry
+            
         };
     });
-
+builder.Services.AddSwaggerGen();
 builder.Services.AddAuthorization();
 
 // ============================================================================
