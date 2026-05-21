@@ -98,10 +98,3 @@ This repository contains the exercises and sample projects completed during Week
 - Demonstrates database integration testing against a real SQL Server environment.
 - Includes CI-friendly test automation and Docker-backed database setup.
 
-## Notes
-
-- Day 3 folder names were updated from `QuotesAPI-Amey` to `QuotesAPI-Apurva`, and Day 3 text content was updated accordingly.
-- The root `README.md` now contains the full summary for Day 1, Day 2, and Day 3.
-- `QuotesApi` includes production-style startup configuration, error handling, authentication, and database migration logic.
-- `QuotesApiNode` shows a lightweight alternative API built without Express.
-- Open the workspace in Visual Studio or Visual Studio Code and run each project with `dotnet run` or `npm start` as appropriate.
