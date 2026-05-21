@@ -1,6 +1,6 @@
 # Week 1 Summary
 
-This repository contains the exercises and sample projects completed during Week 1. The work is organized by day and focuses on basic C# and TypeScript development, API design, dependency injection, asynchronous programming, domain modeling, and authentication.
+This repository contains the exercises and sample projects completed during Week 1. The work is organized by day and focuses on basic C# and TypeScript development, API design, dependency injection, asynchronous programming, domain modeling, authentication, and secure API testing.
 
 ## Day 1
 
@@ -66,15 +66,42 @@ This repository contains the exercises and sample projects completed during Week
 - Implements refresh token persistence with rotation and reuse detection.
 - Uses a refresh token model with hashed token storage, expiry, revocation, and replacement tracking.
 
+## Day 3
+
+### `task-1-Wire Entra ID as the identity provider`
+- Implements Azure Entra ID / Azure AD authentication for the Quotes API.
+- Demonstrates using a cloud identity provider to protect API endpoints instead of local username/password authentication.
+- Includes a `QuotesAPI-Apurva` project with the API implementation and configuration.
+
+### `task-2-Authorization policies and claims`
+- Adds authorization policies and claims-based access control.
+- Shows how to enforce role-based and claim-based permissions in a minimal API.
+- Includes dedicated policy registration and secure endpoint handling.
+
+### `task-4-xUnit with Fluent Assertions`
+- Adds unit tests with xUnit and Fluent Assertions.
+- Verifies domain invariants and API behavior with clear, expressive assertions.
+- Contains test projects for application rules and controller behavior.
+
+### `task-5-Lock down the API end-to-end`
+- Secures the API flow from authentication to authorization.
+- Covers end-to-end protection of endpoints and data access.
+- Includes a locked-down solution with submission notes.
+
+### `task-6-Integration tests with WebApplicationFactory`
+- Adds integration tests using `WebApplicationFactory`.
+- Validates the full ASP.NET Core request pipeline with realistic scenarios.
+- Includes both unit and integration test projects.
+
+### `task-7-Real SQL Server in CI with Testcontainers`
+- Uses Testcontainers to run a real SQL Server instance in CI.
+- Demonstrates database integration testing against a real SQL Server environment.
+- Includes CI-friendly test automation and Docker-backed database setup.
+
 ## Notes
 
-- `day3/` is present but does not contain completed work yet.
+- Day 3 folder names were updated from `QuotesAPI-Amey` to `QuotesAPI-Apurva`, and Day 3 text content was updated accordingly.
+- The root `README.md` now contains the full summary for Day 1, Day 2, and Day 3.
 - `QuotesApi` includes production-style startup configuration, error handling, authentication, and database migration logic.
 - `QuotesApiNode` shows a lightweight alternative API built without Express.
-
-## How to use
-
-- Open the workspace in Visual Studio or Visual Studio Code.
-- Run C# projects using `dotnet run` from the project folder.
-- Run the Node.js project using `npm install` and `npm start` from `QuotesApiNode`.
-- Explore the `README.md` files inside the task folders for more specific instructions.
+- Open the workspace in Visual Studio or Visual Studio Code and run each project with `dotnet run` or `npm start` as appropriate.
