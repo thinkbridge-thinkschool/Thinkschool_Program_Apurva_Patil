@@ -3,6 +3,8 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -17,8 +19,7 @@ public class TestWebAppFactory : WebApplicationFactory<Program>, IAsyncLifetime
     public const string TestSigningKey = "integration-test-key-must-be-32chars!!";
 
     // Spins up a real SQL Server 2022 container
-    private readonly MsSqlContainer _sqlContainer = new MsSqlBuilder()
-        .WithImage("mcr.microsoft.com/mssql/server:2022-latest")
+    private readonly MsSqlContainer _sqlContainer = new MsSqlBuilder("mcr.microsoft.com/mssql/server:2022-latest")
         .Build();
 
     // IAsyncLifetime — starts container before any tests run
@@ -48,10 +49,14 @@ public class TestWebAppFactory : WebApplicationFactory<Program>, IAsyncLifetime
         builder.ConfigureTestServices(services =>
         {
             // ── Replace SQLite with real SQL Server from container ────────────
+            services.RemoveAll<IDbContextOptionsConfiguration<QuotesDbContext>>();
+            services.RemoveAll<DbContextOptions>();
             services.RemoveAll<DbContextOptions<QuotesDbContext>>();
             services.RemoveAll<QuotesDbContext>();
             services.AddDbContext<QuotesDbContext>(options =>
-                options.UseSqlServer(_sqlContainer.GetConnectionString()));
+                options
+                    .UseSqlServer(_sqlContainer.GetConnectionString())
+                    .ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning)));
 
             // ── Same JWT test config as before ───────────────────────────────
             services.PostConfigure<JwtBearerOptions>("InternalJwt", options =>
