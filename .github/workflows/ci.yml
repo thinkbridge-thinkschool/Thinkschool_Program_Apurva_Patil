@@ -21,23 +21,23 @@ jobs:
 
 
       - name: Restore
-        run: dotnet restore Day4/Task1/Day3.csproj
+        run: dotnet restore day4/Task1/Day3.csproj
 
       - name: Build
-        run: dotnet build Day4/Task1/Day3.csproj --no-restore
+        run: dotnet build day4/Task1/Day3.csproj --no-restore
 
       - name: Test (Unit)
         run: |
-          dotnet test Day4/Task1/Quotes.Tests.Unit/Quotes.Tests.Unit.csproj --no-build \
+          dotnet test day4/Task1/Quotes.Tests.Unit/Quotes.Tests.Unit.csproj --no-build \
             --logger "trx;LogFileName=test-results-unit.trx" \
             --collect:"XPlat Code Coverage"
 
       - name: Test (Integration)
         run: |
-          dotnet test Day4/Task1/IntegrationTests/Day3.IntegrationTests.csproj --no-build \
+          dotnet test day4/Task1/IntegrationTests/Day3.IntegrationTests.csproj --no-build \
             --logger "trx;LogFileName=test-results-integration.trx" \
             --collect:"XPlat Code Coverage"
-          dotnet test Day4/Task1/Quotes.Tests.Integration/Quotes.Tests.Integration.csproj --no-build \
+          dotnet test day4/Task1/Quotes.Tests.Integration/Quotes.Tests.Integration.csproj --no-build \
             --logger "trx;LogFileName=test-results-integration2.trx" \
             --collect:"XPlat Code Coverage"
 
