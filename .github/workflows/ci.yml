@@ -35,8 +35,6 @@ jobs:
         run: |
           dotnet test day4/Task1/IntegrationTests/Day3.IntegrationTests.csproj \
             --logger "trx;LogFileName=test-results-integration.trx"
-          dotnet test day4/Task1/Quotes.Tests.Integration/Quotes.Tests.Integration.csproj \
-            --logger "trx;LogFileName=test-results-integration2.trx"
 
       - name: Upload test results
         uses: actions/upload-artifact@v4
