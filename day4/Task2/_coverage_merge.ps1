@@ -1,6 +1,8 @@
 $ErrorActionPreference = "Stop"
-$unitProj='..\Task1\Day3\Task6\Quotes.Tests.Unit\Quotes.Tests.Unit.csproj'
-$intProj='..\Task1\Day3\Task6\Quotes.Tests.Integration\Quotes.Tests.Integration.csproj'
+
+$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..\")).Path
+$unitProj = (Join-Path $repoRoot "day4/Task1/Day3/Task6/Quotes.Tests.Unit/Quotes.Tests.Unit.csproj")
+$intProj  = (Join-Path $repoRoot "day4/Task1/Day3/Task6/Quotes.Tests.Integration/Quotes.Tests.Integration.csproj")
 
 $unitOut = dotnet test $unitProj --collect:"XPlat Code Coverage" --nologo -v m 2>&1 | Tee-Object -Variable unitLog
 $intOut  = dotnet test $intProj  --collect:"XPlat Code Coverage" --nologo -v m 2>&1 | Tee-Object -Variable intLog
@@ -15,10 +17,26 @@ function Get-TestTotals([string[]]$log){
 $unitTotals=Get-TestTotals $unitLog
 $intTotals=Get-TestTotals $intLog
 
-$unitDir=Split-Path $unitProj -Parent
-$intDir=Split-Path $intProj -Parent
-$unitCov=Get-ChildItem -Path $unitDir -Recurse -Filter 'coverage.cobertura.xml' | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-$intCov=Get-ChildItem -Path $intDir -Recurse -Filter 'coverage.cobertura.xml' | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+function Get-LatestNonEmptyCoverage([string]$rootPath){
+  $files = Get-ChildItem -Path $rootPath -Recurse -Filter 'coverage.cobertura.xml' -ErrorAction SilentlyContinue |
+    Sort-Object LastWriteTime -Descending
+
+  foreach($f in $files){
+    try {
+      [xml]$xml = Get-Content -Raw $f.FullName
+      if($xml.coverage -and [int]$xml.coverage.'lines-valid' -gt 0){
+        return $f
+      }
+    } catch {
+      # ignore malformed files and continue looking
+    }
+  }
+
+  return $null
+}
+
+$unitCov = Get-LatestNonEmptyCoverage (Split-Path -Path $unitProj -Parent)
+$intCov  = Get-LatestNonEmptyCoverage (Split-Path -Path $intProj -Parent)
 if(-not $unitCov -or -not $intCov){ throw 'Coverage file not found for one or both projects.' }
 
 function Add-ReportToMap($path,[hashtable]$map){
@@ -73,5 +91,7 @@ Write-Output "Merged line coverage (class+line): Covered=$covered Valid=$valid P
 Write-Output ""
 Write-Output "Grouped totals:"
 $groups | Format-Table -AutoSize | Out-String | Write-Output
-Write-Output "Uncovered Program lines: $((if($progUncovered){$progUncovered -join ', '}else{'<none>'}))"
-Write-Output "Uncovered SystemClock lines: $((if($clockUncovered){$clockUncovered -join ', '}else{'<none>'}))"
+$progUncoveredText = if($progUncovered){ $progUncovered -join ', ' } else { '<none>' }
+$clockUncoveredText = if($clockUncovered){ $clockUncovered -join ', ' } else { '<none>' }
+Write-Output "Uncovered Program lines: $progUncoveredText"
+Write-Output "Uncovered SystemClock lines: $clockUncoveredText"
