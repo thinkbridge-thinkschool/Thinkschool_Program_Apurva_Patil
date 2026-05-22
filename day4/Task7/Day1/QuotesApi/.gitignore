@@ -1,0 +1,49 @@
+## Build results
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleasePublic/
+[Xx]64/
+[Xx]86/
+[Ww][Ii][Nn]32/
+[Ww][Ii][Nn]64/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+## Visual Studio
+.vs/
+.vscode/
+*.user
+*.suo
+*.sln.docstates
+
+## Test results
+TestResults/
+
+## NuGet
+*.nupkg
+*.snupkg
+packages/
+.nuget/
+
+## Database
+*.db
+*.db-shm
+*.db-wal
+
+## Entity Framework
+efpt.config.json
+
+## Environment
+.env
+.env.local
+.env.*.local
+
+## OS
+.DS_Store
+Thumbs.db
