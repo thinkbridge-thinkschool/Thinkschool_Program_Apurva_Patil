@@ -12,10 +12,21 @@
     <Compile Remove="IntegrationTests\**" />
     <Compile Remove="Quotes.Tests.Unit\**" />
     <Compile Remove="Quotes.Tests.Integration\**" />
+    <Content Remove="Tests\**" />
+    <Content Remove="IntegrationTests\**" />
+    <Content Remove="Quotes.Tests.Unit\**" />
+    <Content Remove="Quotes.Tests.Integration\**" />
+    <None Remove="Tests\**" />
+    <None Remove="IntegrationTests\**" />
+    <None Remove="Quotes.Tests.Unit\**" />
+    <None Remove="Quotes.Tests.Integration\**" />
+    <EmbeddedResource Remove="Tests\**" />
+    <EmbeddedResource Remove="IntegrationTests\**" />
+    <EmbeddedResource Remove="Quotes.Tests.Unit\**" />
+    <EmbeddedResource Remove="Quotes.Tests.Integration\**" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.8" />
     <PackageReference Include="Microsoft.Identity.Web" Version="4.9.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="9.0.5" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.5">

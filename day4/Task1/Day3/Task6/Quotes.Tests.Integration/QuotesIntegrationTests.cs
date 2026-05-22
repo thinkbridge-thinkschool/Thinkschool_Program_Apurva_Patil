@@ -46,7 +46,9 @@ public class QuotesIntegrationTests : IDisposable
     private static string MakeToken(
         string userId,
         string? scope    = null,
-        TimeSpan? lifetime = null)
+        TimeSpan? lifetime = null,
+        string issuer = "your-app",
+        string audience = "your-audience")
     {
         var key   = new SymmetricSecurityKey(
             Encoding.UTF8.GetBytes(IntegrationTestFactory.TestSigningKey));
@@ -56,8 +58,8 @@ public class QuotesIntegrationTests : IDisposable
         if (scope != null) claims.Add(new("scope", scope));
 
         var jwt = new JwtSecurityToken(
-            issuer:   "your-app",
-            audience: "your-audience",
+            issuer:   issuer,
+            audience: audience,
             claims:   claims,
             expires:  DateTime.UtcNow.Add(lifetime ?? TimeSpan.FromMinutes(15)),
             signingCredentials: creds);
@@ -143,6 +145,38 @@ public class QuotesIntegrationTests : IDisposable
         var expired = MakeToken("user-x", lifetime: TimeSpan.FromHours(-1));
         _client.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", expired);
+
+        var resp = await _client.GetAsync("/quotes");
+        resp.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    // Test 6b
+    [Fact]
+    public async Task GetQuotes_WithLoginMicrosoftIssuerSpoof_IsRejectedWith401()
+    {
+        var entraLike = MakeToken(
+            "entra-user-1",
+            issuer: "https://login.microsoftonline.com/fake-tenant/v2.0",
+            audience: "any-audience");
+
+        _client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", entraLike);
+
+        var resp = await _client.GetAsync("/quotes");
+        resp.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    // Test 6c
+    [Fact]
+    public async Task GetQuotes_WithStsWindowsIssuerSpoof_IsRejectedWith401()
+    {
+        var entraLike = MakeToken(
+            "entra-user-2",
+            issuer: "https://sts.windows.net/fake-tenant/",
+            audience: "any-audience");
+
+        _client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", entraLike);
 
         var resp = await _client.GetAsync("/quotes");
         resp.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
