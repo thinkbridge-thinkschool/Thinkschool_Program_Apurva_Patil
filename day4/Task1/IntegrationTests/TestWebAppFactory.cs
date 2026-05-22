@@ -10,6 +10,7 @@ using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Text;
 using Testcontainers.MsSql;
+using Xunit;
 
 public class TestWebAppFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
