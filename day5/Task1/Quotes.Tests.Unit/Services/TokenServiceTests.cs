@@ -1,5 +1,6 @@
 using FluentAssertions;
-using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Options;
+using NSubstitute;
 
 public class TokenServiceTests
 {
@@ -9,13 +10,16 @@ public class TokenServiceTests
 
     private static TokenService CreateSut(FakeClock clock)
     {
-        var config = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["Jwt:SigningKey"] = SigningKey
-            })
-            .Build();
-        return new TokenService(config, clock);
+        var optionsMonitor = Substitute.For<IOptionsMonitor<JwtOptions>>();
+        optionsMonitor.CurrentValue.Returns(new JwtOptions
+        {
+            SigningKey = SigningKey,
+            Issuer = "test-issuer",
+            Audience = "test-audience",
+            AccessTokenLifetime = TimeSpan.FromMinutes(15)
+        });
+
+        return new TokenService(optionsMonitor, clock);
     }
 
     // ─── IssueRefreshToken ───────────────────────────────────────────────────
