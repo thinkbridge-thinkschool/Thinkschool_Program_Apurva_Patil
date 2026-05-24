@@ -1,5 +1,18 @@
 # Azure Container Apps Setup — Task 3 Output
 
+## Exercise Answer
+
+Commands:
+
+```bash
+az group create -n thinkschool-rg -l centralindia
+az containerapp env create -n thinkschool-env -g thinkschool-rg -l centralindia
+az containerapp env show -n thinkschool-env -g thinkschool-rg
+```
+
+JSON output of `az containerapp env show` is included in the section:
+`## az containerapp env show — Output`
+
 ## Region Note
 
 `centralindia` was used (allowed by the `D Y Patil Education Society` tenant).
