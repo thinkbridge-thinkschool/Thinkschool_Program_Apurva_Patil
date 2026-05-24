@@ -99,18 +99,43 @@ requests
 | `percentile(duration, 50/99)` | p50/p99 latency in milliseconds |
 | `order by p99 desc` | Slowest tail routes first |
 
-### Actual query result
+### KQL result screenshot
 
-| name | count_ | p50 | p99 |
+![KQL results in App Insights Logs](KQLResults.png)
+
+### Actual query result (from screenshot)
+
+| name | count_ | p50 (ms) | p99 (ms) |
 |---|---|---|---|
-| `GET /quotes/slow-nplusone` | 1 | 800 | 800 |
-| `POST /auth/token` | 1 | 190 | 190 |
-| `GET /quotes/{id}` | 3 | 162 | 200 |
-| `POST /quotes` | 4 | 95 | 140 |
-| `GET /quotes` | 4 | 45 | 80 |
+| `POST /api/auth/login` | 6 | 662.52 | **1449.03** |
+| `GET /health` | 11 | 0.48 | 279.33 |
+| `POST /api/quotes/` | 4 | 4.19 | 189.26 |
+| `POST /api/auth/refresh` | 2 | 17.93 | 62.20 |
+| `GET /api/quotes/` | 4 | 2.61 | 25.36 |
+| `GET /api/quotes/{id:int}` | 6 | 1.94 | 9.40 |
 
-> p50/p99 are rounded approximations — App Insights uses HyperLogLog sketches so percentiles on
-> small sample sizes may vary ±10 ms. With production-scale traffic the numbers stabilise.
+---
+
+## Observation — most surprising endpoint
+
+**`POST /api/auth/login` — p50 662 ms, p99 1449 ms**
+
+This was the biggest surprise. The login route is the slowest by nearly 10×, with a p99 that hits
+almost 1.5 seconds. Two things explain the gap between p50 and p99:
+
+1. **Cold-start cost lands here first.** The Container App scales to zero between test runs. The
+   first inbound request after a cold start absorbs JIT compilation, EF Core migration check, and
+   DI container initialisation. Because every test script hits `/auth/login` before any other
+   endpoint, the cold-start tax shows up entirely in this route's numbers.
+
+2. **BCrypt / password hashing (if used) is intentionally CPU-bound.** Even with a fast algorithm,
+   key-derivation work on a 0.25-vCPU container replica inflates p99 disproportionately under
+   concurrency.
+
+`GET /api/quotes/{id:int}` at p50 1.9 ms is the fastest — a simple primary-key lookup with EF Core
+already warmed up. The 350× latency difference between auth and a single-row read is the ratio to
+watch: if auth ever needs to be called on every request (e.g., token introspection), that gap would
+become a scalability bottleneck.
 
 ---
 
