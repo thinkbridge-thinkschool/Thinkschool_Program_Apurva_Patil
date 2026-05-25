@@ -1,0 +1,10 @@
+namespace QuotesDay7Task2.Data;
+
+public class Author
+{
+    public int Id { get; set; }
+    public string Name { get; set; } = "";
+    public string? Bio { get; set; }
+
+    public ICollection<Quote> Quotes { get; set; } = new List<Quote>();
+}
