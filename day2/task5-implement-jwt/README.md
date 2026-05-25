@@ -5,7 +5,7 @@ This exercise adds JWT authentication to the Quotes API.
 Run the API:
 
 ```powershell
-cd "c:\Users\Vipul Yadav\OneDrive\Desktop\Day-02\task_05_Implement_JWT"
+cd "c:\Users\apurv\OneDrive\Desktop\Day_02\task_05_Implement_JWT"
 dotnet run
 ```
 
