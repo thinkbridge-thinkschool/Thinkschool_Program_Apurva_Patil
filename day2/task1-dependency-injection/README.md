@@ -5,7 +5,7 @@ This small Web API demonstrates using DI lifetimes and an `IClock` abstraction.
 To run:
 
 ```powershell
-cd "c:\Users\Vipul Yadav\OneDrive\Desktop\Day-02\task-01_Dependency-Injection"
+cd "c:\Users\apurv\OneDrive\Desktop\Day-02\task-01_Dependency-Injection"
 dotnet run
 ```
 
