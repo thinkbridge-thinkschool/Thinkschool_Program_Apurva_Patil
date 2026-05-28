@@ -1,4 +1,4 @@
-using QueryTranslationDemo.Demos;
+using QueryTranslationDemo;
 
 Console.WriteLine("""
 ─────────────────────────────────────────────────────────────────────────────
@@ -7,8 +7,15 @@ Console.WriteLine("""
 ─────────────────────────────────────────────────────────────────────────────
 """);
 
+Console.WriteLine("① SQL logging");
 SqlLoggingDemo.Run();
-ClientSideEvalDemo.Run();
+
+Console.WriteLine("② Projection demos");
+ProjectionDemo.Run();
+ProjectionDemo.RunFiltered();
+
+Console.WriteLine("③ Client-side evaluation");
+ClientEvalDemo.Run();
 
 Console.WriteLine("""
 ─────────────────────────────────────────────────────────────────────────────
@@ -16,6 +23,6 @@ Console.WriteLine("""
   1. LogTo(…, [Database.Command], Information) shows exactly what SQL EF sends.
   2. .Select(p => new Dto{…}) removes unused columns from the SELECT list.
   3. .Where() before .ToList() keeps the filter server-side.
-  4. EF Core 3+ throws for untranslatable expressions — no silent client eval.
+  4. .AsEnumerable() mid-query silently fetches all rows — no exception raised.
 ─────────────────────────────────────────────────────────────────────────────
 """);
