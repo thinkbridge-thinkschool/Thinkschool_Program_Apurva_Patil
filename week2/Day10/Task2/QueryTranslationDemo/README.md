@@ -4,10 +4,10 @@
 
 | Demo | File | Concept |
 |---|---|---|
-| SQL logging setup | `AppDbContext.cs` | `LogTo` + `EnableSensitiveDataLogging` |
-| Full entity vs projection | `SqlLoggingDemo.cs` | `.Select(p => new Dto{})` narrows the SQL SELECT list |
-| WHERE + projection combined | `SqlLoggingDemo.cs` | Both pushed to a single SQL statement |
-| Client-side eval trap | `ClientSideEvalDemo.cs` | `.AsEnumerable()` silently fetches all rows |
+| SQL logging setup | `SqlLoggingDemo.cs` | `LogTo` + `EnableSensitiveDataLogging` |
+| Full entity vs projection | `ProjectionDemo.cs` | `.Select(p => new Dto{})` narrows the SQL SELECT list |
+| WHERE + projection combined | `ProjectionDemo.cs` | Both pushed to a single SQL statement |
+| Client-side eval trap | `ClientEvalDemo.cs` | `.AsEnumerable()` silently fetches all rows |
 
 Database: `EFCoreDemoDay10` (LocalDB) — 10 000 `Product` rows seeded by Day 10 Task 1.
 
@@ -146,11 +146,14 @@ info: RelationalEventId.CommandExecuted[20101] (Microsoft.EntityFrameworkCore.Da
 
 ## Screenshots
 
-See the `Screenshots/` folder for the captured terminal output showing:
-
-1. Full entity SQL vs projection SQL (column difference visible)
-2. BAD `.AsEnumerable()` SQL — bare SELECT, no WHERE, no TOP
-3. GOOD fixed SQL — WHERE + TOP present
+| File | What it shows |
+|---|---|
+| `database-seed-verification.png` | SSMS query confirming 10 000 rows exist in `EFCoreDemoDay10` before running demos |
+| `SqlLoggingSetup.png` | Demo 1 — `LogTo` active; full 4-column SELECT visible for `Take(3)` query |
+| `ProjectionDiff.png` | Demo 2 — BEFORE (all 4 columns) vs AFTER (only `Id` + `Name`); `Price` and `Stock` absent |
+| `ProjectionDemo.png` | Demo 3 — `WHERE [Price] > 900` + narrow `SELECT` compiled into one SQL statement |
+| `Bad.AsEnumerable.png` | Demo 4 (broken) — bare `SELECT` with no `WHERE` and no `TOP` despite `.Where()` and `.Take()` in C# |
+| `GoodFixed_AsEnumerable.png` | Demo 4 (fixed) — `WHERE [Price] < 5.0` + `TOP(10)` present; only 10 rows transferred |
 
 ---
 
