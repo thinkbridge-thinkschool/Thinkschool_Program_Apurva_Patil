@@ -1,0 +1,8 @@
+Slow endpoint (N+1 query): GET /api/collections/1/with-quotes-slow
+10 VUs, 20s duration
+
+http_req_duration { endpoint:slow }
+  avg=105.37ms  min=13.18ms  med=81.73ms  max=2.36s
+  p(90)=150.31ms  p(95)=218.44ms  p(99)=354.26ms
+
+Queries per request: 1 (collection) + 10 (one per quote) = 11 queries
