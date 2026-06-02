@@ -15,6 +15,9 @@
   @if (loading()) {
     <p class="status">Loading quotes…</p>
   }
+  @if (error()) {
+  <p class="status" style="color: red;">{{ error() }}</p>
+}
 
   @if (!loading()) {
     @if (filteredQuotes().length === 0) {

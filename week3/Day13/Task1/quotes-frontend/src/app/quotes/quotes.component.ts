@@ -13,6 +13,7 @@ export class QuotesComponent {
 
   readonly loading = signal(true);
   readonly authorFilter = signal('');
+  readonly error = signal<string | null>(null);  // ← Added this line to track errors
   private readonly allQuotes = signal<Quote[]>([]);
 
   readonly filteredQuotes = computed(() => {
@@ -40,6 +41,7 @@ export class QuotesComponent {
       },
       error: (err) => {
         console.error('Failed to load quotes:', err);
+        this.error.set('Failed to load quotes. Please try again.');
         this.loading.set(false);
       },
     });
