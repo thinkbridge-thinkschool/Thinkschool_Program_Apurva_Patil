@@ -1,0 +1,35 @@
+<section class="quotes-container">
+  <h1>Quotes</h1>
+
+  <div class="filter-bar">
+    <label for="authorFilter">Filter by author</label>
+    <input
+      id="authorFilter"
+      type="text"
+      placeholder="e.g. Aristotle"
+      [value]="authorFilter()"
+      (input)="onFilterInput($event)"
+    />
+  </div>
+
+  @if (loading()) {
+    <p class="status">Loading quotes…</p>
+  }
+  @if (error()) {
+  <p class="status" style="color: red;">{{ error() }}</p>
+}
+
+  @if (!loading() && !error()) {
+    @if (filteredQuotes().length === 0) {
+      <p class="status">No quotes found.</p>
+    }
+
+    @for (q of filteredQuotes(); track q.id) {
+      <article class="quote-card" (click)="onQuoteClick(q.id)">
+        <blockquote>{{ q.text }}</blockquote>
+        <footer>— {{ q.author }}</footer>
+        <time>{{ q.createdAt | date: 'mediumDate' }}</time>
+      </article>
+    }
+  }
+</section>
