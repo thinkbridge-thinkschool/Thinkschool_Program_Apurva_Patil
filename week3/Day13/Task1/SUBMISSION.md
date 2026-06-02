@@ -667,3 +667,24 @@ readonly loading = signal(true);
 | Pagination added (API starts returning `{ items, totalCount }`) | Same as wrapping case — `quotes.set()` receives the wrapper object; all list rendering breaks |
 
 The root fix for the last two categories is a typed HTTP interceptor or a Zod/class-transformer validation layer at the service boundary. As built, the contract is implicit and unchecked at runtime.
+
+###Fix 2 — Added error state to UI**
+
+Problem I noticed: When the API fails, the component was only 
+logging the error to console — the user saw a blank page with 
+no explanation.
+
+What I fixed: Added an error signal to quotes.component.ts:
+readonly error = signal<string | null>(null);
+
+And set it in the error handler:
+this.error.set('Failed to load quotes. Please try again.');
+
+Added to quotes.component.html:
+@if (error()) {
+  <p class="status" style="color: red;">{{ error() }}</p>
+}
+
+Proof: Stopped the API and refreshed localhost:4200 — 
+error message appeared on screen instead of blank page.
+Screenshot: 06_error_state.png
