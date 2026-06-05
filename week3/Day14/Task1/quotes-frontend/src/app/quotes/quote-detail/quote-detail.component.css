@@ -1,0 +1,68 @@
+.detail-container {
+  max-width: 720px;
+  margin: 2rem auto;
+  font-family: sans-serif;
+  padding: 0 1rem;
+}
+
+.back-btn {
+  background: none;
+  border: none;
+  color: #0070f3;
+  font-size: 0.95rem;
+  cursor: pointer;
+  padding: 0;
+  margin-bottom: 1.5rem;
+  display: inline-block;
+}
+
+.back-btn:hover {
+  text-decoration: underline;
+}
+
+.status {
+  color: #666;
+  font-style: italic;
+}
+
+.status.error {
+  color: #c0392b;
+  font-style: normal;
+}
+
+.quote-detail-card {
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 1.5rem 1.8rem;
+  background: #fafafa;
+}
+
+blockquote {
+  margin: 0 0 1rem;
+  font-size: 1.2rem;
+  line-height: 1.65;
+  color: #222;
+}
+
+footer {
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 0.4rem;
+}
+
+time {
+  display: block;
+  font-size: 0.82rem;
+  color: #999;
+  margin-bottom: 0.75rem;
+}
+
+.deleted-badge {
+  display: inline-block;
+  padding: 0.2rem 0.6rem;
+  background: #fdecea;
+  color: #c0392b;
+  border-radius: 4px;
+  font-size: 0.78rem;
+  font-weight: 600;
+}

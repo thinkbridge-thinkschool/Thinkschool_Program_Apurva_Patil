@@ -1,0 +1,26 @@
+<section class="detail-container">
+  <button class="back-btn" (click)="goBack()">&#8592; Back to Quotes</button>
+
+  @if (loading()) {
+    <p class="status">Loading quote…</p>
+  }
+
+  @if (error()) {
+    <p class="status error">{{ error() }}</p>
+  }
+
+  @if (!loading() && !error() && !quote()) {
+    <p class="status">Quote not found.</p>
+  }
+
+  @if (quote(); as q) {
+    <article class="quote-detail-card">
+      <blockquote>{{ q.text }}</blockquote>
+      <footer>— {{ q.author }}</footer>
+      <time>{{ q.createdAt | date: 'mediumDate' }}</time>
+      @if (q.isDeleted) {
+        <span class="deleted-badge">Deleted</span>
+      }
+    </article>
+  }
+</section>

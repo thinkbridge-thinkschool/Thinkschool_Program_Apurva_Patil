@@ -1,0 +1,62 @@
+<section class="create-quote-container">
+  <h1>Create Quote</h1>
+
+  @if (serverError()) {
+    <div class="server-error" role="alert">{{ serverError() }}</div>
+  }
+
+  <form [formGroup]="form" (ngSubmit)="onSubmit()" novalidate>
+    <div class="field">
+      <label for="author">Author</label>
+      <input
+        id="author"
+        type="text"
+        formControlName="author"
+        [attr.aria-invalid]="form.controls['author'].invalid && form.controls['author'].touched"
+        aria-describedby="author-error"
+        autocomplete="off"
+      />
+      @if (form.controls['author'].invalid && form.controls['author'].touched) {
+        <p id="author-error" class="field-error" role="alert">
+          @if (form.controls['author'].hasError('required')) {
+            Author is required
+          } @else if (form.controls['author'].hasError('minlength')) {
+            Author must be at least 2 characters
+          } @else if (form.controls['author'].hasError('maxlength')) {
+            Author cannot exceed 100 characters
+          }
+        </p>
+      } @else {
+        <p id="author-error" class="field-error" aria-hidden="true"></p>
+      }
+    </div>
+
+    <div class="field">
+      <label for="text">Quote Text</label>
+      <textarea
+        id="text"
+        formControlName="text"
+        rows="5"
+        [attr.aria-invalid]="form.controls['text'].invalid && form.controls['text'].touched"
+        aria-describedby="text-error"
+      ></textarea>
+      @if (form.controls['text'].invalid && form.controls['text'].touched) {
+        <p id="text-error" class="field-error" role="alert">
+          @if (form.controls['text'].hasError('required')) {
+            Quote text is required
+          } @else if (form.controls['text'].hasError('minlength')) {
+            Quote text must be at least 5 characters
+          } @else if (form.controls['text'].hasError('maxlength')) {
+            Quote text cannot exceed 1000 characters
+          }
+        </p>
+      } @else {
+        <p id="text-error" class="field-error" aria-hidden="true"></p>
+      }
+    </div>
+
+    <button type="submit" [disabled]="submitting()">
+      {{ submitting() ? 'Submitting...' : 'Create Quote' }}
+    </button>
+  </form>
+</section>

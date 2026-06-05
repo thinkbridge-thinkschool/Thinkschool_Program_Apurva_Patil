@@ -1,0 +1,62 @@
+<section class="create-quote-container">
+  <h1>Create Quote</h1>
+
+  @if (serverError()) {
+    <div class="server-error" role="alert">{{ serverError() }}</div>
+  }
+
+  <form (submit)="onSubmit($event)" novalidate>
+    <div class="field">
+      <label for="author">Author</label>
+      <input
+        id="author"
+        type="text"
+        [formField]="author"
+        [attr.aria-invalid]="author().invalid() && author().touched()"
+        aria-describedby="author-error"
+        autocomplete="off"
+      />
+      @if (author().invalid() && author().touched()) {
+        <p id="author-error" class="field-error" role="alert">
+          @if (author().errors().some(e => e.kind === 'required')) {
+            Author is required
+          } @else if (author().errors().some(e => e.kind === 'minLength')) {
+            Author must be at least 2 characters
+          } @else if (author().errors().some(e => e.kind === 'maxLength')) {
+            Author cannot exceed 100 characters
+          }
+        </p>
+      } @else {
+        <p id="author-error" class="field-error" aria-hidden="true"></p>
+      }
+    </div>
+
+    <div class="field">
+      <label for="text">Quote Text</label>
+      <textarea
+        id="text"
+        [formField]="text"
+        rows="5"
+        [attr.aria-invalid]="text().invalid() && text().touched()"
+        aria-describedby="text-error"
+      ></textarea>
+      @if (text().invalid() && text().touched()) {
+        <p id="text-error" class="field-error" role="alert">
+          @if (text().errors().some(e => e.kind === 'required')) {
+            Quote text is required
+          } @else if (text().errors().some(e => e.kind === 'minLength')) {
+            Quote text must be at least 5 characters
+          } @else if (text().errors().some(e => e.kind === 'maxLength')) {
+            Quote text cannot exceed 1000 characters
+          }
+        </p>
+      } @else {
+        <p id="text-error" class="field-error" aria-hidden="true"></p>
+      }
+    </div>
+
+    <button type="submit" [disabled]="submitting()">
+      {{ submitting() ? 'Submitting...' : 'Create Quote' }}
+    </button>
+  </form>
+</section>

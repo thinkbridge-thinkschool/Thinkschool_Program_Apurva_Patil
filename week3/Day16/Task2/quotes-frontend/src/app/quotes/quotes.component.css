@@ -1,0 +1,64 @@
+.quotes-container {
+  max-width: 720px;
+  margin: 2rem auto;
+  font-family: sans-serif;
+  padding: 0 1rem;
+}
+
+h1 {
+  font-size: 1.8rem;
+  margin-bottom: 1rem;
+}
+
+.filter-bar {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.filter-bar input {
+  flex: 1;
+  padding: 0.4rem 0.6rem;
+  font-size: 1rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+.status {
+  color: #666;
+  font-style: italic;
+}
+
+.quote-card {
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 1rem 1.2rem;
+  margin-bottom: 1rem;
+  background: #fafafa;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.quote-card:hover {
+  border-color: #999;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+
+blockquote {
+  margin: 0 0 0.5rem;
+  font-size: 1.05rem;
+  line-height: 1.5;
+}
+
+footer {
+  font-weight: 600;
+  color: #333;
+}
+
+time {
+  display: block;
+  font-size: 0.8rem;
+  color: #999;
+  margin-top: 0.25rem;
+}

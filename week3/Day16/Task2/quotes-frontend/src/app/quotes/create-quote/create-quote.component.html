@@ -1,0 +1,82 @@
+<section class="create-page">
+  <h2>Create a quote</h2>
+
+  @if (serverError()) {
+    <div class="server-error" role="alert">{{ serverError() }}</div>
+  }
+
+  <form (submit)="onSubmit($event)" novalidate class="create-form">
+
+    <div class="field">
+      <label for="author">Author</label>
+      <input
+        id="author"
+        type="text"
+        [formField]="author"
+        [attr.aria-invalid]="author().invalid() && author().touched()"
+        aria-describedby="author-error"
+        autocomplete="off"
+        placeholder="e.g. Marcus Aurelius"
+      />
+      <p id="author-error" class="field-error" role="alert">
+        @if (author().invalid() && author().touched()) {
+          @if (author().errors().some(e => e.kind === 'required')) { Author is required. }
+          @else if (author().errors().some(e => e.kind === 'minLength')) { Must be at least 2 characters. }
+          @else if (author().errors().some(e => e.kind === 'maxLength')) { Cannot exceed 100 characters. }
+        }
+      </p>
+    </div>
+
+    <div class="field">
+      <label for="text">Quote text</label>
+      <textarea
+        id="text"
+        [formField]="text"
+        rows="4"
+        [attr.aria-invalid]="text().invalid() && text().touched()"
+        aria-describedby="text-error"
+        placeholder="Enter the quote…"
+      ></textarea>
+      <p id="text-error" class="field-error" role="alert">
+        @if (text().invalid() && text().touched()) {
+          @if (text().errors().some(e => e.kind === 'required')) { Quote text is required. }
+          @else if (text().errors().some(e => e.kind === 'minLength')) { Must be at least 5 characters. }
+          @else if (text().errors().some(e => e.kind === 'maxLength')) { Cannot exceed 1000 characters. }
+        }
+      </p>
+    </div>
+
+    <div class="metadata">
+      <p class="meta-heading">Metadata <span class="optional">(optional)</span></p>
+
+      <div class="radio-group">
+        <p class="radio-label">Tag</p>
+        <div class="radio-options">
+          @for (tag of tags; track tag) {
+            <label class="radio-item">
+              <input type="radio" name="tag" [value]="tag" />
+              <span class="badge tag-{{ tag }}">{{ tag }}</span>
+            </label>
+          }
+        </div>
+      </div>
+
+      <div class="radio-group">
+        <p class="radio-label">Category</p>
+        <div class="radio-options">
+          @for (cat of categories; track cat) {
+            <label class="radio-item">
+              <input type="radio" name="category" [value]="cat" />
+              <span class="badge cat-{{ cat }}">{{ cat }}</span>
+            </label>
+          }
+        </div>
+      </div>
+    </div>
+
+    <button type="submit" class="submit-btn" [disabled]="submitting()">
+      {{ submitting() ? 'Creating…' : 'Create quote' }}
+    </button>
+
+  </form>
+</section>
