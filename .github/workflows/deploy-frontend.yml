@@ -36,6 +36,6 @@ jobs:
           azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           action: upload
-          app_location: week3/Day17/Task1/quotes-frontend
-          output_location: dist/quotes-frontend/browser
+          app_location: week3/Day17/Task1/quotes-frontend/dist/quotes-frontend/browser
+          output_location: ''
           skip_app_build: true
