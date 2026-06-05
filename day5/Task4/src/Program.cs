@@ -9,6 +9,7 @@ using Microsoft.Extensions.Options;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Exporter;
 using OpenTelemetry.Trace;
+using Scalar.AspNetCore;
 using Serilog;
 using Serilog.Context;
 using Serilog.Sinks.ApplicationInsights.TelemetryConverters;
@@ -16,6 +17,7 @@ using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 var aiConnectionString = builder.Configuration["ApplicationInsights:ConnectionString"];
+builder.Services.AddOpenApi();
 
 builder.Services.AddOptions<JwtOptions>()
     .Bind(builder.Configuration.GetRequiredSection("Jwt"))
@@ -134,6 +136,17 @@ builder.Services.AddDbContext<QuotesDbContext>(options =>
         builder.Configuration.GetConnectionString("DefaultConnection")
         ?? "Data Source=quotes.db"));
 
+var corsOrigins = (builder.Configuration["Cors:AllowedOrigins"] ?? "http://localhost:4200")
+    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("Angular", policy =>
+        policy.WithOrigins(corsOrigins)
+              .AllowAnyHeader()
+              .AllowAnyMethod());
+});
+
 var app = builder.Build();
 
 // Ensure SQLite database and schema exist on every cold start.
@@ -152,7 +165,9 @@ app.Use(async (ctx, next) =>
 });
 
 app.UseSerilogRequestLogging();
-
+app.UseCors("Angular");
+app.MapOpenApi();
+app.MapScalarApiReference();
 app.UseAuthentication();
 app.UseAuthorization();
 
@@ -160,4 +175,4 @@ app.MapControllers();
 
 app.Run();
 
-public partial class Program { }
+

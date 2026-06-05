@@ -6,7 +6,7 @@ using System.Diagnostics;
 
 [Authorize]
 [ApiController]
-[Route("[controller]")]
+[Route("api/[controller]")]
 public class QuotesController : ControllerBase
 {
     private static readonly ActivitySource _activitySource = new("QuotesApi");
