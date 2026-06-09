@@ -1,0 +1,45 @@
+{
+  "UserConfig": {
+    "Namespaces": [
+      {
+        "Name": "sbemulatorns",
+        "Queues": [],
+        "Topics": [
+          {
+            "Name": "orders",
+            "Properties": {
+              "DefaultMessageTimeToLive": "PT1H",
+              "DuplicateDetectionHistoryTimeWindow": "PT1M",
+              "RequiresDuplicateDetection": false
+            },
+            "Subscriptions": [
+              {
+                "Name": "sub-primary",
+                "Properties": {
+                  "DeadLetteringOnMessageExpiration": true,
+                  "DefaultMessageTimeToLive": "PT1H",
+                  "LockDuration": "PT30S",
+                  "MaxDeliveryCount": 3,
+                  "RequiresSession": false
+                }
+              },
+              {
+                "Name": "sub-audit",
+                "Properties": {
+                  "DeadLetteringOnMessageExpiration": true,
+                  "DefaultMessageTimeToLive": "PT1H",
+                  "LockDuration": "PT30S",
+                  "MaxDeliveryCount": 3,
+                  "RequiresSession": false
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "Logging": {
+      "Type": "File"
+    }
+  }
+}

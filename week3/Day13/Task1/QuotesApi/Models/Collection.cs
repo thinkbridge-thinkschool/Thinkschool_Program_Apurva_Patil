@@ -1,5 +1,6 @@
 namespace QuotesApi.Models;
-
+//Domain-Driven-Design
+//Has BL into model itself 
 public class Collection
 {
     // Private parameterless constructor for EF Core

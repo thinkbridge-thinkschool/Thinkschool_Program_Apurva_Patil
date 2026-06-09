@@ -416,32 +416,9 @@ The model has **four fields only**. There is no `IsDeleted` property. `Results.O
 exactly those four fields as `{ id, text, author, createdAt }`. At runtime `isDeleted` would be
 `undefined` on every detail response.
 
-**Before (agent's wrong first draft):**
-
-```typescript
-// quote-detail.component.ts — agent's first draft
-interface QuoteEntity {
-  id: number;
-  author: string;
-  text: string;
-  isDeleted: boolean;   // ← copied from quotes.service.ts, does not exist in the API response
-  createdAt: string;
-}
-```
-
-**After (fix applied to `src/app/features/quotes/quote-detail.component.ts`, lines 18–23):**
-
-```typescript
-// quote-detail.component.ts — current file
-interface QuoteEntity {
-  id: number;
-  author: string;
-  text: string;
-  createdAt: string;
-}
-```
-
-`isDeleted` was removed from the file. The interface now matches exactly the four fields `GET /api/quotes/{id}` serializes. This is the code that is live in the repo — not just a description.
+**The fix:** Remove `isDeleted` from `QuoteDetailComponent`'s local `QuoteEntity` interface so it
+matches the real `GET /api/quotes/${id}` response shape. The fixed interface has exactly the four
+fields the backend actually sends.
 
 **Proof the fix is correct:** `quote-detail.component.spec.ts` flushes
 `{ id: 5, author: '...', text: '...', createdAt: '...' }` (four fields, no `isDeleted`) and

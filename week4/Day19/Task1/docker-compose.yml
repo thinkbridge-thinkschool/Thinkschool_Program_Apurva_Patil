@@ -1,0 +1,27 @@
+services:
+  sqledge:
+    image: mcr.microsoft.com/azure-sql-edge:latest
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "Day19Strong@Pass"
+    networks:
+      - sb-net
+
+  servicebus-emulator:
+    image: mcr.microsoft.com/azure-messaging/servicebus-emulator:latest
+    environment:
+      ACCEPT_EULA: "Y"
+      SQL_SERVER: sqledge
+      MSSQL_SA_PASSWORD: "Day19Strong@Pass"
+    ports:
+      - "5672:5672"
+    volumes:
+      - ./Config/servicebus-config.json:/ServiceBus_Emulator/ConfigFiles/Config.json
+    depends_on:
+      - sqledge
+    networks:
+      - sb-net
+
+networks:
+  sb-net:
+    driver: bridge

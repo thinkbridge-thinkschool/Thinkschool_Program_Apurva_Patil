@@ -1,19 +1,23 @@
 import { Component, computed, effect, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
+import { ActivatedRoute, Router } from '@angular/router';
 import { Quote, QuotesService } from '../quotes.service';
 
-@Component({ ///component decorator defines metadata for the component, such as its selector, template, and styles.
-  selector: 'app-quotes', //tag used to display component
+@Component({
+  selector: 'app-quotes',
   imports: [DatePipe],
-  templateUrl: './quotes.component.html', //html UI file
+  templateUrl: './quotes.component.html',
   styleUrl: './quotes.component.css',
 })
 export class QuotesComponent {
   private readonly quotesService = inject(QuotesService);
+  private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
 
   readonly loading = signal(true);
   readonly authorFilter = signal('');
-  readonly error = signal<string | null>(null);  // ← Added this line to track errors
+  readonly error = signal<string | null>(null);
+  readonly successMessage = signal<string | null>(null);
   private readonly allQuotes = signal<Quote[]>([]);
 
   readonly filteredQuotes = computed(() => {
@@ -30,6 +34,12 @@ export class QuotesComponent {
     });
 
     this.loadQuotes();
+
+    if (this.route.snapshot.queryParamMap.get('created') === 'true') {
+      this.successMessage.set('Quote created successfully!');
+      this.router.navigate([], { queryParams: {}, replaceUrl: true });
+      setTimeout(() => this.successMessage.set(null), 3000);
+    }
   }
 
   private loadQuotes(): void {
@@ -49,5 +59,9 @@ export class QuotesComponent {
 
   onFilterInput(event: Event): void {
     this.authorFilter.set((event.target as HTMLInputElement).value);
+  }
+
+  onQuoteClick(id: number): void {
+    this.router.navigate(['/quotes', id]);
   }
 }

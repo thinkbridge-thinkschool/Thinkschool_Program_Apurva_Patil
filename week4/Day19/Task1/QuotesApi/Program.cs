@@ -1,6 +1,8 @@
 using System.Text;
+using System.Threading.Channels;
 using Azure.Extensions.AspNetCore.Configuration.Secrets;
 using Azure.Identity;
+using Azure.Messaging.ServiceBus;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
@@ -67,7 +69,38 @@ builder.Services.AddAuthorization();
 
 builder.Services.AddSingleton<ITokenService, TokenService>();
 
+// Shared in-memory queue — singleton so both the endpoint and the background service use the same instance
+builder.Services.AddSingleton(Channel.CreateBounded<int>(new BoundedChannelOptions(100)
+{
+    FullMode = BoundedChannelFullMode.Wait
+}));
+builder.Services.AddHostedService<QuoteNotificationService>();
+
+// ============================================================================
+// SERVICE BUS — registered only when connection string is present.
+// For local development: put the connection string in appsettings.Development.json.
+// For production: store it as secret "ServiceBus--ConnectionString" in Key Vault.
+// ============================================================================
+var serviceBusConnStr = builder.Configuration["ServiceBus:ConnectionString"];
+if (!string.IsNullOrWhiteSpace(serviceBusConnStr))
+{
+    builder.Services.AddSingleton(new ServiceBusClient(serviceBusConnStr));
+    builder.Services.AddSingleton<ServiceBusPublisher>();
+    builder.Services.AddHostedService<ServiceBusConsumerWorker>();
+}
+
 var app = builder.Build();
+
+// ============================================================================
+// STARTUP DIAGNOSTICS
+// ============================================================================
+var startupLogger = app.Logger;
+startupLogger.LogInformation("ASPNETCORE_ENVIRONMENT = {Env}", app.Environment.EnvironmentName);
+var resolvedConnStr = app.Configuration["ServiceBus:ConnectionString"];
+if (string.IsNullOrWhiteSpace(resolvedConnStr))
+    startupLogger.LogWarning("ServiceBus:ConnectionString is EMPTY — Service Bus endpoints will return 503");
+else
+    startupLogger.LogInformation("ServiceBus:ConnectionString loaded (length={Len})", resolvedConnStr.Length);
 
 // ============================================================================
 // MIDDLEWARE PIPELINE
@@ -117,7 +150,7 @@ using (var scope = app.Services.CreateScope())
             dbContext.Quotes.AddRange(
                 new QuotesApi.Models.Quote { Author = "Aristotle",     Text = "The more you know, the more you realize you don't know." },
                 new QuotesApi.Models.Quote { Author = "Marcus Aurelius", Text = "You have power over your mind, not outside events. Realize this, and you will find strength." },
-                new QuotesApi.Models.Quote { Author = "Seneca",         Text = "It is not that I'm so smart. But I stay with the questions much longer." },
+                new QuotesApi.Models.Quote { Author = "Einstein",        Text = "It is not that I'm so smart. But I stay with the questions much longer." },
                 new QuotesApi.Models.Quote { Author = "Aristotle",     Text = "We are what we repeatedly do. Excellence, then, is not an act, but a habit." },
                 new QuotesApi.Models.Quote { Author = "Marcus Aurelius", Text = "Waste no more time arguing about what a good man should be. Be one." }
             );
@@ -130,6 +163,30 @@ using (var scope = app.Services.CreateScope())
         logger.LogError(ex, "An error occurred while applying database migrations");
         throw;
     }
+}
+
+// Ensure the Service Bus topic and both subscriptions exist before the worker starts consuming.
+// Skipped for the local emulator: ServiceBusAdministrationClient uses HTTPS (port 443) which
+// the emulator does not expose. Topics are pre-created from Config/servicebus-config.json instead.
+var isEmulator = (app.Configuration["ServiceBus:ConnectionString"] ?? "")
+    .Contains("UseDevelopmentEmulator=true", StringComparison.OrdinalIgnoreCase);
+
+if (!isEmulator && app.Services.GetService<ServiceBusPublisher>() is { } publisher)
+{
+    try
+    {
+        startupLogger.LogInformation("Ensuring Service Bus topic and subscriptions exist...");
+        await publisher.EnsureSubscriptionsAsync(app.Lifetime.ApplicationStopping);
+        startupLogger.LogInformation("Service Bus topic and subscriptions ready");
+    }
+    catch (Exception ex)
+    {
+        startupLogger.LogError(ex, "EnsureSubscriptionsAsync failed — check connection string and emulator health");
+    }
+}
+else if (isEmulator)
+{
+    startupLogger.LogInformation("Emulator detected — skipping EnsureSubscriptionsAsync (topics pre-created from servicebus-config.json)");
 }
 
 // ============================================================================
@@ -145,5 +202,6 @@ app.UseSwaggerUI();
 app.MapAuthEndpoints();
 app.MapQuoteEndpoints();
 app.MapCollectionEndpoints();
+app.MapMessageEndpoints();
 
 app.Run();

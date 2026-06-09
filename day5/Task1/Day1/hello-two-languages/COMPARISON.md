@@ -1,1 +1,0 @@
-C# automatically generated a complete project structure and provides built in compilation and dependency.TypeScript gives single hello.ts file and executed it directly without a separate build step. C# gives more structure automatically, while TypeScript requires less setup but also provides fewer built-in features.
