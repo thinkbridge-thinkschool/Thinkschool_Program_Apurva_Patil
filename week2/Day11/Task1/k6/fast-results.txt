@@ -1,8 +1,16 @@
-Fast endpoint (IN-clause fix): GET /api/collections/1/with-quotes-fast
-10 VUs, 20s duration
+Fast endpoint actual k6 output — extracted from Screenshots/k6-results.png
+Command: k6 run k6/load-test.js  (fast_endpoint scenario: 10 VUs, 20s, startTime: 25s)
 
-http_req_duration { endpoint:fast }
-  avg=17.43ms  min=522.29µs  med=11.97ms  max=387.71ms
-  p(90)=31.84ms  p(95)=44.18ms  p(99)=124.27ms
+THRESHOLDS
+  http_req_duration{endpoint:fast}
+    ✓ 'p(99)<500'  p(99)=124.27ms
 
-Queries per request: 2 (1 collection + 1 WHERE Id IN (...))
+HTTP
+  http_req_duration { endpoint:fast }
+    avg=17.43ms  min=522.29µs  med=11.97ms  max=387.71ms  p(90)=31.84ms  p(95)=44.18ms
+
+running (0m45.0s), 00/20 VUs, 13223 complete and 0 interrupted iterations
+fast_endpoint  ✓ [====================================] 10 VUs  20s
+
+Queries per request: 2 (collection + single WHERE Id IN (...) for all quotes)
+Root cause fixed: replaced foreach+FirstOrDefaultAsync loop with a single batched query

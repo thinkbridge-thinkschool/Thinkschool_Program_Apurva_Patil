@@ -1,8 +1,20 @@
-Slow endpoint (N+1 query): GET /api/collections/1/with-quotes-slow
-10 VUs, 20s duration
+Slow endpoint actual k6 output — extracted from Screenshots/k6-results.png
+Command: k6 run k6/load-test.js  (slow_endpoint scenario only: 10 VUs, 20s)
 
-http_req_duration { endpoint:slow }
-  avg=105.37ms  min=13.18ms  med=81.73ms  max=2.36s
-  p(90)=150.31ms  p(95)=218.44ms  p(99)=354.26ms
+THRESHOLDS
+  http_req_duration{endpoint:slow}
+    ✓ 'p(99)<5000'  p(99)=354.26ms
 
-Queries per request: 1 (collection) + 10 (one per quote) = 11 queries
+HTTP
+  http_req_duration { endpoint:slow }
+    avg=105.37ms  min=13.18ms  med=81.73ms  max=2.36s  p(90)=150.31ms  p(95)=218.44ms
+
+checks_total.......: 13223  293.622111/s   (both scenarios combined)
+checks_succeeded...: 100.00%  13223 out of 13223
+http_req_failed....: 0.00%   0 out of 13223
+
+running (0m45.0s), 00/20 VUs, 13223 complete and 0 interrupted iterations
+slow_endpoint ✓ [====================================] 10 VUs  20s
+
+Queries per request: 1 (collection + items) + 10 (one per CollectionItem) = 11 total
+Root cause: explicit async foreach loop in EndpointExtensions.cs line 229
