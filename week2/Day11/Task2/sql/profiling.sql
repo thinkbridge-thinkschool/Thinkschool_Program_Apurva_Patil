@@ -1,108 +1,89 @@
 -- =============================================================================
 -- Day 11 Task 2 — Before / After Query Plans (SQL Server)
 -- =============================================================================
--- Prereq: POST /api/dev/seed  (creates 100 quotes, 3 collections of 10 items)
--- Enable IO + time stats for all queries below:
---   SET STATISTICS IO ON;
---   SET STATISTICS TIME ON;
+-- RUN THIS IN SSMS. Copy-paste the full output into Solution.md.
+--
+-- Prereq: POST /api/dev/seed   (creates 100 quotes, Collection-1 with 100 items)
+-- Verify: SELECT COUNT(*) FROM CollectionItems WHERE CollectionId = 1  → expect 100
 -- =============================================================================
 
+-- ─────────────────────────────────────────────────────────────────────────────
+-- SECTION 1: STATISTICS IO — logical reads before vs after
+-- Run each block separately to see clean IO output per query.
+-- ─────────────────────────────────────────────────────────────────────────────
 
--- =============================================================================
--- BEFORE: N+1 pattern
--- =============================================================================
--- The slow endpoint runs this in a loop — once per item in the collection.
--- For a collection with 10 items this becomes 11 round-trips to SQL Server.
+SET STATISTICS IO ON;
+SET STATISTICS TIME ON;
 
--- Step 1 — load the collection (runs once)
-SELECT c.Id, c.Name, c.OwnerId,
-       i.QuoteId, i.AddedAt
-FROM   Collections AS c
-JOIN   CollectionItems AS i ON i.CollectionId = c.Id
-WHERE  c.Id = 1;
-
--- Step 2 — load each quote individually (runs N times inside foreach loop)
--- EF Core generates this query once per item:
+-- ── BEFORE: individual quote fetch (the N+1 loop does this 50 times) ────────
+-- This is what EF Core generates inside the foreach loop, once per item:
+PRINT '=== BEFORE: single-row quote fetch (repeated 50x in N+1 loop) ===';
 SELECT TOP(1) q.Id, q.Author, q.Text, q.IsDeleted, q.CreatedAt
 FROM   Quotes AS q
-WHERE  q.Id = 1;   -- repeated for Id = 2, 3, 4 ... 10
+WHERE  q.Id = 1;
 
--- EXPLAIN (SQL Server equivalent):
--- SET SHOWPLAN_TEXT ON;
--- SELECT TOP(1) * FROM Quotes WHERE Id = 1;
--- SET SHOWPLAN_TEXT OFF;
---
--- Plan output:
---   Clustered Index Seek (Quotes.PK__Quotes) -- fast per call
---   BUT: 10 separate network round-trips for 10 items, latency stacks up
---
--- STATISTICS IO output (per individual quote lookup):
---   Table 'Quotes'. Scan count 0, logical reads 2
---   x10 items = 20 logical reads + 11 network round-trips total
-
-
--- =============================================================================
--- AFTER: Single IN-clause (2 queries total)
--- =============================================================================
--- The fast endpoint collects all QuoteIds first, then fetches in one shot.
-
--- Step 1 — same as before (unchanged)
-SELECT c.Id, c.Name, c.OwnerId,
-       i.QuoteId, i.AddedAt
-FROM   Collections AS c
-JOIN   CollectionItems AS i ON i.CollectionId = c.Id
-WHERE  c.Id = 1;
-
--- Step 2 — fetch ALL quotes in one query using IN clause
+-- ── AFTER: single IN-clause fetch for all 100 quotes ────────────────────────
+PRINT '=== AFTER: single IN-clause for all 100 quote IDs ===';
 SELECT q.Id, q.Author, q.Text, q.IsDeleted, q.CreatedAt
 FROM   Quotes AS q
-WHERE  q.Id IN (1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
+WHERE  q.Id IN (
+    1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,
+    21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,
+    41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,
+    61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,
+    81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100
+);
 
--- EXPLAIN:
--- SET SHOWPLAN_TEXT ON;
--- SELECT * FROM Quotes WHERE Id IN (1,2,3,4,5,6,7,8,9,10);
--- SET SHOWPLAN_TEXT OFF;
---
--- Plan output:
---   Clustered Index Seek (Quotes.PK__Quotes) -- single seek covering all 10 rows
---   1 network round-trip instead of 10
---
--- STATISTICS IO output:
---   Table 'Quotes'. Scan count 1, logical reads 3
---   Total = 3 logical reads (vs 20 before) -- same rows, 6x fewer page reads
+SET STATISTICS IO OFF;
+SET STATISTICS TIME OFF;
 
+-- ─────────────────────────────────────────────────────────────────────────────
+-- SECTION 2: Execution plan XML — run each with Actual Execution Plan ON
+-- ─────────────────────────────────────────────────────────────────────────────
 
--- =============================================================================
--- Index in play: IX_Quotes_Author
--- =============================================================================
--- Added via EF Core: entity.HasIndex(e => e.Author)
--- Helps filter-by-author queries that would otherwise full-scan the table.
+-- Query 2a — single row lookup (N+1 loop body)
+SELECT TOP(1) q.Id, q.Author, q.Text, q.IsDeleted, q.CreatedAt
+FROM   Quotes AS q
+WHERE  q.Id = 1;
 
--- Without index: full table scan
--- SELECT * FROM Quotes WHERE Author = 'Seneca'
--- Plan: Clustered Index Scan (reads all rows)
+-- Query 2b — IN-clause for all 100 items
+SELECT q.Id, q.Author, q.Text, q.IsDeleted, q.CreatedAt
+FROM   Quotes AS q
+WHERE  q.Id IN (
+    1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,
+    21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,
+    41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,
+    61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,
+    81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100
+);
 
--- With IX_Quotes_Author: index seek
--- Plan: Index Seek (IX_Quotes_Author) + Key Lookup
--- For 100 rows: logical reads drop from ~5 pages to 2 pages
+-- ─────────────────────────────────────────────────────────────────────────────
+-- SECTION 3: Covering index — verify no Key Lookup on author-filtered query
+-- ─────────────────────────────────────────────────────────────────────────────
 
-SELECT q.Id, q.Author, q.Text, q.CreatedAt
+SET STATISTICS IO ON;
+
+PRINT '=== Author-filtered query — should use IX_Quotes_Author (no key lookup) ===';
+SELECT q.Author, q.Text, q.CreatedAt
 FROM   Quotes AS q
 WHERE  q.Author = 'Seneca';
 
+SET STATISTICS IO OFF;
 
--- =============================================================================
--- Load test results (50 concurrent requests, ThrottleLimit=10, N=10 items)
--- =============================================================================
---
---  Endpoint            p50     p99     max
---  ------------------  ------  ------  ------
---  SLOW  (N+1)         25 ms   32 ms   596 ms
---  FAST  (IN-clause)    6 ms   41 ms   121 ms
---
---  p50 improvement:  25 ms ->  6 ms  (~4x faster at median)
---  max improvement: 596 ms -> 121 ms (~5x faster at tail)
---
---  Note: 10x is achievable at collection max capacity (50 items).
---  With N=10 the gap is ~4-5x. At N=50 each extra round-trip costs
---  proportionally more vs the single IN-clause, pushing the ratio past 10x.
+-- Expected output after covering index is applied:
+--   Table 'Quotes'. Scan count 1, logical reads 2  (index leaf only, no key lookup)
+-- Before covering index:
+--   Table 'Quotes'. Scan count 1, logical reads N  (index seek + key lookup per row)
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- SECTION 4: Verify seed is correct before running k6
+-- ─────────────────────────────────────────────────────────────────────────────
+
+SELECT c.Id, c.Name, COUNT(i.QuoteId) AS ItemCount
+FROM   Collections c
+JOIN   CollectionItem i ON i.CollectionId = c.Id
+GROUP  BY c.Id, c.Name;
+-- Collection-1 must show ItemCount = 100
+
+SELECT COUNT(*) AS TotalQuotes FROM Quotes;
+-- Must be 100 (5 authors × 20 quotes)

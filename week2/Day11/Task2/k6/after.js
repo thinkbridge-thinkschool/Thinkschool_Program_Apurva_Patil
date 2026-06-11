@@ -1,10 +1,14 @@
 // k6 load test — AFTER fix (IN-clause endpoint)
 //
 // Run:
-//   k6 run after.js
+//   k6 run k6/after.js
 //
-// Compare the p50 and p99 numbers with before.js output.
-// Target: p99 at least 4-5x lower than the before run.
+// Test scope: Collection-1 has 100 items (N=100).
+//   Fast path fires ALWAYS 2 SQL queries per HTTP request:
+//   1 SELECT for the collection + 1 SELECT WHERE Id IN (...100 ids...).
+//   At 80 VUs: 80 × 2 = 160 simultaneous DB queries — bounded even at high concurrency.
+//   Same N=100 collection, same VU count, same no-sleep pattern as before.js.
+//   Target: p99 >= 10x lower than before.js.
 //
 // Prerequisites:
 //   1. App running:          dotnet run (inside Day11/Task2/QuotesApi)
@@ -15,8 +19,8 @@ import { check } from 'k6';
 
 export const options = {
     stages: [
-        { duration: '10s', target: 10 }, // ramp up to 10 virtual users
-        { duration: '30s', target: 10 }, // hold steady — capture p50/p99 here
+        { duration: '10s', target: 80 }, // ramp up to 80 virtual users
+        { duration: '30s', target: 80 }, // hold steady — capture p50/p99 here
         { duration: '10s', target: 0  }, // ramp down
     ],
     thresholds: {

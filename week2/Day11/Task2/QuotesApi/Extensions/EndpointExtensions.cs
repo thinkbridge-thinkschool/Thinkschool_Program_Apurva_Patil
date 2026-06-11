@@ -183,6 +183,12 @@ group.MapDelete("/{id}", DeleteQuote)
             db.Collections.RemoveRange(db.Collections);
             await db.SaveChangesAsync(ct);
 
+            // Reset identity counters so IDs are always 1-based after every seed.
+            // Without this, re-seeding produces Collection at ID 1010, 2020, etc.
+            // and the k6 scripts (which call /api/collections/1) would 404.
+            await db.Database.ExecuteSqlRawAsync("DBCC CHECKIDENT ('Quotes',      RESEED, 0)", ct);
+            await db.Database.ExecuteSqlRawAsync("DBCC CHECKIDENT ('Collections', RESEED, 0)", ct);
+
             var authors = new[] { "Marcus Aurelius", "Seneca", "Epictetus",
                                   "Lao Tzu", "Confucius" };
             var quotes = new List<Quote>();
@@ -198,17 +204,16 @@ group.MapDelete("/{id}", DeleteQuote)
             await db.SaveChangesAsync(ct);
 
             var now = DateTimeOffset.UtcNow;
-            var savedIds = db.Quotes.Select(q => q.Id).Take(30).ToList();
-            for (var c = 0; c < 3; c++)
-            {
-                var col = new Collection($"Collection-{c + 1}", ownerId: 1);
-                foreach (var qId in savedIds.Skip(c * 10).Take(10))
-                    col.AddItem(qId, now);
-                db.Collections.Add(col);
-            }
+            // Collection-1 has 100 items so the N+1 benchmark runs at full scale:
+            // slow path = 101 queries, fast path = 2 queries → >10x difference
+            var allIds = db.Quotes.Select(q => q.Id).Take(100).ToList();
+            var col1 = new Collection("Collection-1", ownerId: 1);
+            foreach (var qId in allIds)
+                col1.AddItemUncapped(qId, now);
+            db.Collections.Add(col1);
             await db.SaveChangesAsync(ct);
 
-            return Results.Ok(new { quotes = quotes.Count, collections = 3 });
+            return Results.Ok(new { quotes = quotes.Count, collections = 1, itemsInCollection1 = allIds.Count });
         })
         .WithName("Seed")
         .ExcludeFromDescription();
@@ -245,6 +250,7 @@ group.MapDelete("/{id}", DeleteQuote)
             CancellationToken ct) =>
         {
             var collection = await db.Collections
+                .AsNoTracking()
                 .Include(c => c.Items)
                 .FirstOrDefaultAsync(c => c.Id == id, ct);
 
@@ -252,6 +258,7 @@ group.MapDelete("/{id}", DeleteQuote)
 
             var ids = collection.Items.Select(i => i.QuoteId).ToList();
             var quotes = await db.Quotes
+                .AsNoTracking()
                 .Where(q => ids.Contains(q.Id))
                 .ToDictionaryAsync(q => q.Id, ct);
 

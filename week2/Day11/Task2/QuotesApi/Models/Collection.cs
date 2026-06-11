@@ -31,6 +31,15 @@ public class Collection
         _items.Add(new CollectionItem(quoteId, addedAt));
     }
 
+    // Seed-only: bypasses the 50-item cap so benchmarks can run at full scale.
+    internal void AddItemUncapped(int quoteId, DateTimeOffset addedAt)
+    {
+        if (_items.Any(i => i.QuoteId == quoteId))
+            throw new InvalidOperationException("This quote is already in the collection.");
+
+        _items.Add(new CollectionItem(quoteId, addedAt));
+    }
+
     public void AddItem(int quoteId)
 {
     AddItem(quoteId, DateTimeOffset.UtcNow);
