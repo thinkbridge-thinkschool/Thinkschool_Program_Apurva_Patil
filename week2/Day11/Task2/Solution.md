@@ -187,8 +187,15 @@ Total cost: 4 logical reads, 1 DB round trip.
 ### Author-filtered query — covering index eliminates Key Lookup
 
 ```
-<!-- PASTE SET STATISTICS IO ON output from SSMS profiling.sql SECTION 3 here -->
-<!-- Expected: Table 'Quotes'. Scan count 1, logical reads 2 (index leaf only, no key lookup) -->
+=== Author-filtered query — should use IX_Quotes_Author (no key lookup) ===
+
+(20 rows affected)
+Table 'Quotes'. Scan count 1, logical reads 3, physical reads 0, page server reads 0,
+read-ahead reads 0, page server read-ahead reads 0, lob logical reads 0.
+SQL Server Execution Times: CPU time = 0 ms, elapsed time = 0 ms.
+Completion time: 2026-06-11T17:28:52.0580918+05:30
+
+Result: 3 logical reads (covering index — no key lookup needed).
 ```
 
 ---
