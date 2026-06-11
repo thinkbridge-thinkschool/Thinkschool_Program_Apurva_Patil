@@ -20,12 +20,34 @@ CREATE INDEX IX_OutboxMessages_ProcessedAt ON OutboxMessages (ProcessedAt);
 
 ### Relay (RelayService.cs)
 
-```
-FOR each pending row (ProcessedAt IS NULL):
-    1. Attempts++  →  SaveChangesAsync          ← committed before publish
-    2. SendMessageAsync(MessageId = outbox.Id)  ← publish to Service Bus
-    3. [CRASH WINDOW — broker has the message, DB still NULL]
-    4. ProcessedAt = UtcNow  →  SaveChangesAsync ← mark sent
+```csharp
+var pending = await db.OutboxMessages
+    .Where(m => m.ProcessedAt == null)
+    .ToListAsync(ct);
+
+foreach (var outbox in pending)
+{
+    // 1. Increment attempt counter and commit BEFORE publishing
+    outbox.Attempts++;
+    await db.SaveChangesAsync(ct);
+
+    // 2. Publish — MessageId is stable across re-publishes of the same row
+    var message = new ServiceBusMessage(outbox.Payload)
+    {
+        MessageId = outbox.Id.ToString(),
+        ContentType = "application/json"
+    };
+    message.ApplicationProperties["eventType"] = outbox.EventType;
+    await sender.SendMessageAsync(message, ct);
+
+    // 3. CRASH WINDOW — broker has the message, ProcessedAt still NULL
+    if (_crashAfterPublish)
+        Environment.Exit(1);   // hard process kill, not a caught exception
+
+    // 4. Mark sent
+    outbox.ProcessedAt = DateTime.UtcNow;
+    await db.SaveChangesAsync(ct);
+}
 ```
 
 The ordering is deliberate: **publish, then mark**. A crash in the window between steps 2 and 4 leaves `ProcessedAt = NULL`, so the relay re-publishes on the next run (at-least-once). The consumer deduplicates via `ProcessedMessages` keyed on `MessageId` (= `OutboxMessage.Id`, stable across re-publishes).
@@ -33,6 +55,12 @@ The ordering is deliberate: **publish, then mark**. A crash in the window betwee
 `CrashAfterPublish` in `appsettings.json` controls the crash toggle. When `true`, the relay calls `Environment.Exit(1)` immediately after `SendMessageAsync` — a hard process termination, not a caught exception.
 
 ### Crash scenario tested — double crash (attempts climb to 3)
+
+| Run | What happened | DB state after |
+|-----|--------------|----------------|
+| 1 | Relay incremented Attempts → 1, published, `Environment.Exit(1)` fired | Attempts=1, ProcessedAt=NULL |
+| 2 | App restarted, relay found same row (still NULL), Attempts → 2, published, crashed again | Attempts=2, ProcessedAt=NULL |
+| 3 | App restarted, `CrashAfterPublish=false`, Attempts → 3, published, ProcessedAt set | Attempts=3, ProcessedAt=filled |
 
 **Run 1 — first crash**
 1. `POST /api/quotes` created Quote + OutboxMessage in one explicit transaction (`BeginTransactionAsync` / `CommitAsync`). ProcessedAt = NULL, Attempts = 0.
