@@ -7,8 +7,10 @@
 | `docker-compose.yml` | Added `redis:7-alpine` service on port 6379 |
 | `QuotesApi.csproj` | Added `Microsoft.Extensions.Caching.StackExchangeRedis 10.0.9` + `Microsoft.Extensions.Caching.Hybrid 10.7.0` |
 | `appsettings.json` | Added `"Redis": { "ConnectionString": "localhost:6379" }` |
-| `Extensions/ServiceCollectionExtensions.cs` | Registered `AddStackExchangeRedisCache` (L2) + `AddHybridCache` (30s TTL, stampede protection) |
-| `Extensions/EndpointExtensions.cs` | `GetAllQuotes` now calls `cache.GetOrCreateAsync(...)` with a `[DB HIT]` log inside the factory |
+| `Extensions/ServiceCollectionExtensions.cs` | `AddStackExchangeRedisCache` (L2) + `AddHybridCache` (30s TTL) + `RedisHealthCheck` registered |
+| `Extensions/EndpointExtensions.cs` | `GetAllQuotes`: tags, page guard (>10k), structured log; `GetQuoteById`: cached; `CreateQuote`/`DeleteQuote`: `RemoveByTagAsync` + `RemoveAsync` on mutation |
+| `Services/RedisHealthCheck.cs` | New: custom `IHealthCheck` — pings Redis via `IDistributedCache`, returns `Degraded` when unreachable |
+| `Program.cs` | `app.MapHealthChecks("/health")` added |
 | `k6/load-test.js` | New: 50 VUs × 10s load test with JWT setup |
 
 ---
@@ -16,6 +18,9 @@
 ## 1. HybridCache wiring (ServiceCollectionExtensions.cs)
 
 ```csharp
+// Health-check pipeline — /health endpoint maps to this in Program.cs
+var hcBuilder = services.AddHealthChecks();
+
 // L2: Redis — HybridCache picks this up automatically as the distributed backing store
 var redisConnStr = configuration["Redis:ConnectionString"];
 if (!string.IsNullOrWhiteSpace(redisConnStr))
@@ -24,6 +29,8 @@ if (!string.IsNullOrWhiteSpace(redisConnStr))
     {
         options.Configuration = redisConnStr;
     });
+    // Degraded (not Unhealthy) — app keeps serving from L1 but Redis failure is visible on /health
+    hcBuilder.AddCheck<RedisHealthCheck>("redis", failureStatus: HealthStatus.Degraded);
 }
 
 // HybridCache: L1 in-memory + L2 Redis, 30 s TTL.
@@ -43,34 +50,72 @@ services.AddHybridCache(options =>
 
 ## 2. Cache wiring in endpoint (EndpointExtensions.cs)
 
+**GET — paginated list with tags, page guard, and structured logging:**
 ```csharp
 private static async Task<IResult> GetAllQuotes(
     int page = 1,
     int size = 10,
     IQuoteRepository repository = default!,
     HybridCache cache = default!,
+    ILoggerFactory loggerFactory = default!,
     CancellationToken cancellationToken = default)
 {
     if (page < 1) page = 1;
     if (size < 1) size = 10;
     if (size > 100) size = 100;
+    if (page > 10_000)                                   // guard: stop cache pollution
+        return Results.BadRequest(new { error = "Page number too large." });
 
     var cacheKey = $"quotes:page={page}:size={size}";
+    var log = loggerFactory.CreateLogger("QuoteEndpoints");
 
     var quotes = await cache.GetOrCreateAsync(
         cacheKey,
         async ct =>
         {
-            Console.WriteLine($"[DB HIT] Fetching quotes from database — page={page}, size={size}");
+            log.LogInformation("[DB HIT] page={Page}, size={Size}", page, size);
             return await repository.GetAllAsync(page, size, ct);
         },
+        tags: ["quotes"],                                // tag lets us wipe all pages at once
         cancellationToken: cancellationToken);
 
     return Results.Ok(quotes);
 }
 ```
 
-The `[DB HIT]` log line inside the factory is the key evidence marker — it only fires when a real DB call happens.
+**GET by ID — individual quote cached and invalidated on delete:**
+```csharp
+private static async Task<IResult> GetQuoteById(
+    int id,
+    IQuoteRepository repository,
+    HybridCache cache,
+    CancellationToken cancellationToken)
+{
+    if (id < 1)
+        return Results.BadRequest(new { error = "Invalid quote ID" });
+
+    var quote = await cache.GetOrCreateAsync<Quote?>(
+        $"quotes:id={id}",
+        async ct => await repository.GetByIdAsync(id, ct),
+        cancellationToken: cancellationToken);
+
+    return quote is null
+        ? Results.NotFound(new { error = "Quote not found" })
+        : Results.Ok(quote);
+}
+```
+
+**POST / DELETE — cache invalidation so stale data never serves:**
+```csharp
+// After CreateQuote commits the transaction:
+await cache.RemoveByTagAsync("quotes", cancellationToken);   // wipes all paginated pages
+
+// After DeleteQuote removes the row:
+await cache.RemoveByTagAsync("quotes", cancellationToken);   // wipes all paginated pages
+await cache.RemoveAsync($"quotes:id={id}", cancellationToken); // wipes individual entry
+```
+
+The `[DB HIT]` log inside the factory is the key evidence marker — it only fires when a real DB call happens.
 
 ---
 
