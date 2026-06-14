@@ -1,5 +1,6 @@
 import { Component, inject } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive } from '@angular/router';
+import { AuthService } from '../core/auth.service';
 
 @Component({
   selector: 'app-navbar',
@@ -22,9 +23,10 @@ import { Router, RouterLink, RouterLinkActive } from '@angular/router';
 })
 export class NavbarComponent {
   private readonly router = inject(Router);
+  private readonly auth = inject(AuthService);
 
   logout(): void {
-    localStorage.removeItem('accessToken');
+    this.auth.clearToken();
     this.router.navigate(['/login']);
   }
 }

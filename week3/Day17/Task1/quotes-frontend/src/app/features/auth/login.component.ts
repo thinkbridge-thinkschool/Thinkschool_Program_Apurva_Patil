@@ -3,6 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { environment } from '../../../environments/environment';
 import { FormsModule } from '@angular/forms';
+import { AuthService } from '../../core/auth.service';
 
 @Component({
   selector: 'app-login',
@@ -39,6 +40,7 @@ import { FormsModule } from '@angular/forms';
 export class LoginComponent {
   private readonly http = inject(HttpClient);
   private readonly router = inject(Router);
+  private readonly auth = inject(AuthService);
 
   userId = '';
   readonly error = signal<string | null>(null);
@@ -52,7 +54,7 @@ export class LoginComponent {
       )
       .subscribe({
         next: (res) => {
-          localStorage.setItem('accessToken', res.accessToken);
+          this.auth.setToken(res.accessToken);
           this.router.navigate(['/quotes']);
         },
         error: () => {

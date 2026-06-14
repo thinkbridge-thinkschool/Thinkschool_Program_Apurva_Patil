@@ -2,6 +2,7 @@ import { HttpErrorResponse, HttpInterceptorFn } from '@angular/common/http';
 import { inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { catchError, throwError } from 'rxjs';
+import { AuthService } from '../core/auth.service';
 
 export interface AppError {
   message: string;
@@ -17,10 +18,11 @@ interface ProblemDetails {
 
 export const errorInterceptor: HttpInterceptorFn = (req, next) => {
   const router = inject(Router);
+  const auth = inject(AuthService);
   return next(req).pipe(
     catchError((err: HttpErrorResponse) => {
       if (err.status === 401) {
-        localStorage.removeItem('accessToken');
+        auth.clearToken();
         router.navigate(['/login']);
         return throwError(() => ({ message: 'Session expired.', status: 401 } as AppError));
       }

@@ -16,10 +16,25 @@ var builder = WebApplication.CreateBuilder(args);
 var keyVaultUri = builder.Configuration["KeyVault:Uri"];
 if (!string.IsNullOrWhiteSpace(keyVaultUri))
 {
-    builder.Configuration.AddAzureKeyVault(
-        new Uri(keyVaultUri),
-        new DefaultAzureCredential(),
-        new KeyVaultSecretManager());
+    var loaded = false;
+    for (var attempt = 1; attempt <= 3 && !loaded; attempt++)
+    {
+        try
+        {
+            builder.Configuration.AddAzureKeyVault(
+                new Uri(keyVaultUri),
+                new DefaultAzureCredential(),
+                new KeyVaultSecretManager());
+            loaded = true;
+        }
+        catch (Exception ex) when (attempt < 3)
+        {
+            var delay = TimeSpan.FromSeconds(Math.Pow(2, attempt));
+            Console.Error.WriteLine(
+                $"[KeyVault] attempt {attempt} failed: {ex.Message}. Retrying in {delay.TotalSeconds}s...");
+            await Task.Delay(delay);
+        }
+    }
 }
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
