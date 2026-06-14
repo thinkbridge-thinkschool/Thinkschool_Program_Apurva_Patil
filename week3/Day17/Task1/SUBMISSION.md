@@ -1,263 +1,280 @@
-Day 16 Submission
+# Day 17 — SWA + Managed-Identity QuotesAPI
 
-════════════════════════════════════════
-PART 1 — THE BRIEF I GAVE THE AGENT
-════════════════════════════════════════
+---
 
-## You are working inside my existing Angular project: quotes-frontend.
+## Part 1 — Brief to the Agent
 
-My API
-Base URL: http://localhost:5255/api/quotes
-Endpoints:
-- GET  /api/quotes        → returns Quote[]  (requires Bearer token)
-- GET  /api/quotes/{id}   → returns Quote    (requires Bearer token)
-- POST /api/quotes        → creates a Quote
-- DELETE /api/quotes/{id} → deletes a Quote
+> What I told Claude Code to build and deploy.
 
-Quote model: { id: number, text: string, author: string, createdAt: string }
+**Target SWA URL**
+`https://proud-water-01382c900.7.azurestaticapps.net`
 
-What already exists (do NOT rewrite these):
-- quotes.service.ts         → has getAll(), getById(), createQuote()
-- auth.service.ts           → has getToken() and isLoggedIn()
-- auth.interceptor.ts       → automatically adds Bearer token to every request
-- quotes-list.component.ts  → currently calls HttpClient directly in constructor
-- quote-detail.component.ts → currently calls HttpClient directly in ngOnInit
+**Week-1 API base URL**
+`https://quotesapi.purpleflower-cae11894.centralindia.azurecontainerapps.io`
 
-The problem:
-Both components inject HttpClient themselves and make API calls directly.
-There is no shared state — every navigation re-fetches everything.
+**Endpoints the SWA must hit**
 
-What I want you to build:
-Create src/app/features/quotes/quotes-state.service.ts with:
-- signals: quotes, loading, error, selectedQuote
-- loadQuotes() — calls QuotesService.getAll(), updates signals
-- loadQuote(id) — calls QuotesService.getById(id), updates selectedQuote
-- setError(msg) — only way to write error/loading from outside the service
+| Method | Path | Auth | Key response fields |
+|--------|------|------|---------------------|
+| `POST` | `/auth/token` | Anonymous | `{ accessToken: string }` — symmetric JWT, 15-min lifetime |
+| `GET`  | `/api/quotes?page=1&size=50` | `Authorization: Bearer <JWT>` | `[{ id, text, author, createdAt }]` |
+| `GET`  | `/api/quotes/{id}` | `Authorization: Bearer <JWT>` | `{ id, text, author, createdAt }` or 404 |
 
-Update QuotesListComponent:
-- Remove HttpClient injection
-- Inject QuotesStateService, call loadQuotes() in constructor
-- Keep pagedQuotes, totalPages, authorCount as local computed signals
+**Auth requirement**
+Managed Identity — no client secret stored anywhere in the repo or app settings.
+The Container Apps API reads its JWT signing key at runtime via
+`DefaultAzureCredential` → Azure Key Vault (secret name `Jwt--SigningKey`). The
+SWA deployment token (`AZURE_STATIC_WEB_APPS_API_TOKEN`) is generated and rotated
+by Azure; it is not an Entra ID client secret and is not in source control.
 
-Update QuoteDetailComponent:
-- Remove HttpClient injection
-- Use takeUntilDestroyed() instead of manual Subscription
-- Call state.loadQuote(id) in ngOnInit
+**Other constraints**
+- Angular 21 standalone components, lazy-loaded routes, signals-based state
+- `staticwebapp.config.json`: SPA fallback + immutable-asset caching headers
+- Lighthouse Performance ≥ 95 on the live URL
+- Zero API keys, connection strings, or signing keys in `src/` or CI config
 
-Constraints:
-- Do NOT install NgRx
-- Do NOT modify QuotesService
-- Do NOT add auth headers manually
+---
 
+## Part 2 — Agent Output
 
-════════════════════════════════════════
-PART 2 — AGENT OUTPUT
-════════════════════════════════════════
+### 2a. GitHub Actions CI/CD (`.github/workflows/deploy-frontend.yml`)
 
-## FILE: quotes-state.service.ts
+```yaml
+name: Deploy Frontend to Azure Static Web Apps
 
-import { Injectable, inject, signal } from '@angular/core';
-import { HttpErrorResponse } from '@angular/common/http';
-import { QuotesService, Quote } from '../../quotes.service';
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'week3/Day17/Task1/quotes-frontend/**'
+  workflow_dispatch:
 
-@Injectable({ providedIn: 'root' })
-export class QuotesStateService {
-  private readonly quotesService = inject(QuotesService);
+jobs:
+  build_and_deploy:
+    runs-on: ubuntu-latest
+    name: Build and Deploy
+    steps:
+      - uses: actions/checkout@v4
 
-  readonly quotes = signal<Quote[]>([]);
-  readonly loading = signal(true);
-  readonly error = signal<string | null>(null);
-  readonly selectedQuote = signal<Quote | null>(null);
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: week3/Day17/Task1/quotes-frontend/package-lock.json
 
-  loadQuotes(): void {
-    this.loading.set(true);
-    this.error.set(null);
-    this.quotesService.getAll().subscribe({
-      next: (data) => {
-        this.quotes.set(data);
-        this.loading.set(false);
-      },
-      error: () => {
-        this.error.set('Failed to load quotes.');
-        this.loading.set(false);
-      },
-    });
-  }
+      - name: Install dependencies
+        working-directory: week3/Day17/Task1/quotes-frontend
+        run: npm ci
 
-  loadQuote(id: number): void {
-    this.loading.set(true);
-    this.error.set(null);
-    this.selectedQuote.set(null);
-    this.quotesService.getById(id).subscribe({
-      next: (quote) => {
-        this.selectedQuote.set(quote);
-        this.loading.set(false);
-      },
-      error: (err: HttpErrorResponse) => {
-        this.error.set(err.status === 404 ? 'NOT_FOUND' : 'Failed to load quote.');
-        this.loading.set(false);
-      },
-    });
-  }
+      - name: Build (production)
+        working-directory: week3/Day17/Task1/quotes-frontend
+        run: npm run build
 
-  setError(msg: string): void {
-    this.error.set(msg);
-    this.loading.set(false);
-  }
-}
+      - name: Deploy to Azure Static Web Apps
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          action: upload
+          app_location: week3/Day17/Task1/quotes-frontend/dist/quotes-frontend/browser
+          output_location: ''
+          skip_app_build: true
+```
 
-## FILE: quote-detail.component.ts
+**Why no client secret:** `AZURE_STATIC_WEB_APPS_API_TOKEN` is a deploy token
+issued by Azure when the SWA resource is created. It only authorises pushing static
+assets to that specific SWA — it has no Azure RBAC permissions and is not a
+service-principal credential. No `AZURE_CREDENTIALS` object exists in this repo.
 
-import {
-  Component,
-  computed,
-  DestroyRef,
-  inject,
-  OnInit,
-} from '@angular/core';
-import { ActivatedRoute, RouterLink } from '@angular/router';
-import { DatePipe } from '@angular/common';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { EMPTY } from 'rxjs';
-import { switchMap } from 'rxjs/operators';
-import { QuotesStateService } from './quotes-state.service';
+---
 
-const TAGS = ['wisdom', 'motivation', 'philosophy', 'success', 'life', 'humor', 'truth', 'change', 'perseverance', 'education'];
-const CATS = ['classic', 'modern'];
+### 2b. SWA routing + security headers (`public/staticwebapp.config.json`)
 
-@Component({
-  selector: 'app-quote-detail',
-  standalone: true,
-  imports: [DatePipe, RouterLink],
-  styleUrl: './quote-detail.component.css',
-  template: `
-    <div class="detail-page">
-      <a class="back-link" [routerLink]="['/quotes']">← Back to list</a>
-      @if (loading()) {
-        <p class="state-msg">Loading…</p>
-      } @else if (notFound()) {
-        <p class="state-msg">Quote not found.</p>
-      } @else if (error()) {
-        <p class="state-msg error">{{ error() }}</p>
-      } @else if (quote()) {
-        <h2>Details</h2>
-        <div class="detail-card">
-          <table class="detail-table">
-            <tbody>
-              <tr><th>QUOTE ID</th><td>{{ quote()!.id }}</td></tr>
-              <tr><th>QUOTE</th><td><em>"{{ quote()!.text }}"</em></td></tr>
-              <tr><th>BY AUTHOR</th><td>{{ quote()!.author }}</td></tr>
-              <tr><th>CREATED ON</th><td>{{ quote()!.createdAt | date: 'mediumDate' }}</td></tr>
-              <tr>
-                <th>TAG</th>
-                <td><span class="badge tag-{{ tagFor(quote()!.id) }}">{{ tagFor(quote()!.id) }}</span></td>
-              </tr>
-              <tr>
-                <th>CATEGORY</th>
-                <td><span class="badge cat-{{ catFor(quote()!.id) }}">{{ catFor(quote()!.id) }}</span></td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+```json
+{
+  "navigationFallback": {
+    "rewrite": "/index.html",
+    "exclude": ["/assets/*", "/*.{css,js,ico,png,svg,woff2,map}"]
+  },
+  "globalHeaders": {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "SAMEORIGIN",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+    "Content-Security-Policy": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self' https://quotesapi.purpleflower-cae11894.centralindia.azurecontainerapps.io;"
+  },
+  "routes": [
+    {
+      "route": "/*.{js,css,woff2}",
+      "headers": {
+        "Cache-Control": "public, max-age=31536000, immutable"
       }
-    </div>
-  `,
-})
-export class QuoteDetailComponent implements OnInit {
-  private readonly route = inject(ActivatedRoute);
-  private readonly state = inject(QuotesStateService);
-  private readonly destroyRef = inject(DestroyRef);
-
-  readonly loading = this.state.loading;
-  readonly quote = this.state.selectedQuote;
-  readonly notFound = computed(() => this.state.error() === 'NOT_FOUND');
-  readonly error = computed(() => {
-    const e = this.state.error();
-    return e && e !== 'NOT_FOUND' ? e : null;
-  });
-
-  tagFor(id: number): string { return TAGS[id % TAGS.length]; }
-  catFor(id: number): string { return CATS[id % CATS.length]; }
-
-  ngOnInit(): void {
-    this.route.paramMap
-      .pipe(
-        switchMap((params) => {
-          const id = Number(params.get('id'));
-          if (isNaN(id)) {
-            this.state.setError('Invalid quote ID.');
-            return EMPTY;
-          }
-          this.state.loadQuote(id);
-          return EMPTY;
-        }),
-        takeUntilDestroyed(this.destroyRef),
-      )
-      .subscribe();
+    }
+  ],
+  "mimeTypes": {
+    ".json": "application/json"
   }
 }
+```
 
-### NgRx Threshold Rule
+---
 
-I would move from signals to NgRx when the app becomes large and complex.
-Specifically when multiple features need to share data from one central place,
-when I need to track every state change for debugging, and when the app has
-side effects like HTTP calls that need to be managed in a structured way.
-For a small app like my Quotes app, signals-in-a-service is enough.
+### 2c. Production environment (`src/environments/environment.prod.ts`)
 
+```typescript
+export const environment = {
+  production: true,
+  apiBaseUrl: 'https://quotesapi.purpleflower-cae11894.centralindia.azurecontainerapps.io'
+};
+```
 
-════════════════════════════════════════
-PART 3 — VERIFICATION LOG
-════════════════════════════════════════
+No key, no secret — only the public hostname of the Container Apps API.
 
-## States exercised:
--- Concurrent requests bug — before and after:
+---
 
-  BEFORE (ConcurrentRequests_BEFORE.png):
-  Network tab shows GET /api/quotes/6 firing twice, GET /api/quotes/9,
-  GET /api/quotes/7, GET /api/quotes/13 all firing without cancelling
-  previous requests. Total 10 requests. Initiator shows
-  quotes-state.service.ts:33 but subscriptions were not cleaned up
-  because quote-detail.component.ts was using manual Subscription
-  instead of takeUntilDestroyed().
+### 2d. Bearer-token injection (`src/app/interceptors/auth.interceptor.ts`)
 
-  AFTER (ConcurrentRequests_AFTER.png):
-  Network tab shows GET /api/quotes/9, GET /api/quotes/12,
-  GET /api/quotes/6 each firing exactly once. No duplicate requests.
-  Total 6 requests. Initiator shows quotes-state.service.ts:38
-  confirming takeUntilDestroyed() is now tearing down subscriptions
-  correctly on each navigation.
+```typescript
+export const authInterceptor: HttpInterceptorFn = (req, next) => {
+  const token = localStorage.getItem('accessToken');
+  if (!token) return next(req);
+  return next(req.clone({ setHeaders: { Authorization: `Bearer ${token}` } }));
+};
+```
 
-One concrete bug caught and fixed:
-Agent kept QuotesService injected directly in quote-detail.component.ts
-with manual Subscription and OnDestroy — ignoring two explicit instructions
-in the brief. Fixed by replacing with QuotesStateService injection and
-takeUntilDestroyed(this.destroyRef).
+Every `GET /api/quotes` and `GET /api/quotes/{id}` automatically carries the JWT.
 
-Before:
-  private readonly quotesService = inject(QuotesService);
-  private subscription?: Subscription;
-  ngOnDestroy(): void { this.subscription?.unsubscribe(); }
+---
 
-After:
-  private readonly state = inject(QuotesStateService);
-  private readonly destroyRef = inject(DestroyRef);
-  // takeUntilDestroyed(this.destroyRef) handles cleanup automatically
+### 2e. Token acquisition (`src/app/features/auth/login.component.ts`, key excerpt)
 
-Second bug caught:
-Component was directly mutating service signals:
-  this.state.error.set('Invalid quote ID.');   // wrong
-  this.state.loading.set(false);               // wrong
-Fixed by adding setError() to the service:
-  this.state.setError('Invalid quote ID.');    // correct
+```typescript
+this.http
+  .post<{ accessToken: string }>(
+    `${environment.apiBaseUrl}/auth/token`,
+    { userId: this.userId, scopes: [] },
+  )
+  .subscribe({
+    next: (res) => {
+      localStorage.setItem('accessToken', res.accessToken);
+      this.router.navigate(['/quotes']);
+    },
+    error: () => this.error.set('Login failed. Please try again.'),
+  });
+```
 
-What breaks if the API contract changes:
-- createdAt removed from GET /api/quotes/{id} → detail page silently
-  shows blank date, no error thrown
-- id renamed to quoteId → pagination, tagFor(), and routerLink all
-  silently break since every component references quote.id
-- GET /api/quotes starts requiring ?page=1&pageSize=10 → QuotesService
-  sends no params, server returns 400, entire list shows error state
-- 401 changes to 403 for expired tokens → auth.interceptor.ts only
-  handles 401 redirects, 403 falls through to generic error message
-  instead of redirecting to login
+The Container Apps API's `/auth/token` endpoint signs the JWT using the key it
+fetches from Key Vault via `DefaultAzureCredential`. The signing key never leaves
+Azure Key Vault — the browser only receives the finished token.
+
+---
+
+### 2f. How Managed Identity closes the loop (`QuotesApi/Program.cs`, lines 17–23)
+
+```csharp
+var keyVaultUri = builder.Configuration["KeyVault:Uri"];
+if (!string.IsNullOrWhiteSpace(keyVaultUri))
+{
+    builder.Configuration.AddAzureKeyVault(
+        new Uri(keyVaultUri),
+        new DefaultAzureCredential(),   // ← system-assigned Managed Identity
+        new KeyVaultSecretManager());
+}
+```
+
+`DefaultAzureCredential` uses the Container Apps resource's system-assigned
+Managed Identity. No `ClientId` or `ClientSecret` is supplied; Azure grants secret
+access via the identity attached to the running compute. The JWT signing key is
+loaded at startup and never written to logs, env vars, or disk.
+
+---
+
+## Part 3 — Verification Log
+
+### Live URL
+`https://proud-water-01382c900.7.azurestaticapps.net`
+
+Loads `/login`, accepts any `userId`, calls `POST /auth/token` on the Container
+Apps API, stores the returned JWT, then navigates to `/quotes` where
+`GET /api/quotes?page=1&size=50` returns the five seeded quotes
+(Aristotle × 2, Marcus Aurelius × 2, Seneca).
+
+---
+
+### Lighthouse Score (desktop, incognito)
+
+| Category | Score |
+|----------|-------|
+| Performance | **98** |
+| Accessibility | **97** |
+| Best Practices | **100** |
+| SEO | **100** |
+
+Key factors: Angular 21 production build (tree-shaken, code-split, output-hashed),
+`Cache-Control: immutable` on all `*.js / *.css / *.woff2` assets, no
+render-blocking third-party scripts, SWA CDN edge node.
+
+---
+
+### "No secret in repo or app settings" evidence
+
+| Location | What lives there | Secret? |
+|----------|-----------------|---------|
+| `environment.prod.ts` | Container Apps hostname (public URL) | No |
+| `staticwebapp.config.json` | Routing rules, headers | No |
+| GitHub secret `AZURE_STATIC_WEB_APPS_API_TOKEN` | SWA deploy token (Azure-managed) | Deploy-scoped, not a credential |
+| GitHub secret `AZURE_CREDENTIALS` | **Not present** | — |
+| Container Apps app settings | `KeyVault:Uri` (public URI), `Cors:AllowedOrigins` | No signing key |
+| Azure Key Vault `Jwt--SigningKey` | The actual signing key | Key Vault only — MI access |
+
+`grep -r "SigningKey\|ClientSecret\|password" week3/Day17/Task1/quotes-frontend/src`
+→ **zero matches**.
+
+---
+
+### States Exercised
+
+| State | How triggered | Observed behaviour |
+|-------|--------------|-------------------|
+| **Loading** | Navigate to `/quotes` right after login | `Loading…` message renders while HTTP is in-flight (`QuotesStateService.loading = true`) |
+| **Loaded** | Request completes | 5 quote cards with author, text, tag/category badges |
+| **Empty** | Cleared the DB seed and reloaded | `No quotes yet.` renders (`pagedQuotes().length === 0` branch) |
+| **Network error** | DevTools → Network → offline, then refresh | `Failed to load quotes.` via `QuotesStateService.error` |
+| **401 / bad token** | Set `localStorage.accessToken = "tampered"`, navigated to `/quotes` | API returned 401; `error.interceptor.ts` caught it and redirected to `/login` |
+
+---
+
+### Concrete Bug the Agent Made — and the Fix
+
+**Bug:** The agent (Claude Code) incorrectly assumed "Managed Identity" required
+a server-side Azure Functions proxy and rewrote four source files:
+
+- `environment.prod.ts` — changed `apiBaseUrl` to `''` (relative URL),
+  silently breaking the live Container Apps hostname
+- `environment.ts` — replaced `apiBaseUrl` with two new keys
+  (`quotesApiUrl`, `authTokenUrl`) that the rest of the codebase did not expect,
+  causing TypeScript compile errors on `environment.apiBaseUrl`
+- `quotes.service.ts` — switched to `environment.quotesApiUrl` (undefined in dev)
+- `login.component.ts` — switched to `environment.authTokenUrl` (undefined in dev)
+
+**Why it was wrong:** The existing setup already satisfies the MI requirement.
+The Container Apps API calls `new DefaultAzureCredential()` at startup
+(`Program.cs:20`) to pull `Jwt--SigningKey` from Key Vault. The signing key never
+appears in source code or app settings. Adding a proxy only introduced extra
+latency and complexity with no security gain.
+
+**Fix:** Reverted all four files to their original state.
+
+---
+
+### What Breaks if Auth or a Key Endpoint Changes
+
+| Change | Immediate effect | Recovery |
+|--------|-----------------|----------|
+| `Jwt--SigningKey` rotated in Key Vault | All existing browser JWTs fail instantly (`ClockSkew = TimeSpan.Zero` in `Program.cs:63`); every guarded request returns 401 | Re-login — `/auth/token` signs a new token with the new key; no code change |
+| `KeyVault:Uri` removed from Container Apps settings | API cannot load signing key at startup, throws, refuses to start | Restore the setting in Container Apps → Configuration |
+| Container Apps hostname changes | `environment.prod.ts` `apiBaseUrl` points at old host; CSP `connect-src` also blocks the new host | Update `apiBaseUrl` + `connect-src` in `staticwebapp.config.json`, rebuild, redeploy |
+| `/api/quotes` route renamed | `QuotesService.getAll()` calls the wrong path; all requests return 404; error state renders | Update `quotes.service.ts` URL, redeploy |
+| `AZURE_STATIC_WEB_APPS_API_TOKEN` deleted from GitHub | CI deploy job fails; **running site is unaffected** | Re-generate token in Azure Portal → SWA → Manage deployment token |
