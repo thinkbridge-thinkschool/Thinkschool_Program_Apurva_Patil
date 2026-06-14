@@ -138,12 +138,13 @@ No key, no secret — only the public hostname of the Container Apps API.
 
 ```typescript
 export const authInterceptor: HttpInterceptorFn = (req, next) => {
-  const token = localStorage.getItem('accessToken');
+  const token = inject(AuthService).getToken();
   if (!token) return next(req);
   return next(req.clone({ setHeaders: { Authorization: `Bearer ${token}` } }));
 };
 ```
 
+Token is read from `AuthService` (in-memory), never from `localStorage`.
 Every `GET /api/quotes` and `GET /api/quotes/{id}` automatically carries the JWT.
 
 ---
@@ -158,7 +159,7 @@ this.http
   )
   .subscribe({
     next: (res) => {
-      localStorage.setItem('accessToken', res.accessToken);
+      this.auth.setToken(res.accessToken);   // in-memory, not localStorage
       this.router.navigate(['/quotes']);
     },
     error: () => this.error.set('Login failed. Please try again.'),
@@ -171,16 +172,31 @@ Azure Key Vault — the browser only receives the finished token.
 
 ---
 
-### 2f. How Managed Identity closes the loop (`QuotesApi/Program.cs`, lines 17–23)
+### 2f. How Managed Identity closes the loop (`QuotesApi/Program.cs`, lines 17–38)
 
 ```csharp
 var keyVaultUri = builder.Configuration["KeyVault:Uri"];
 if (!string.IsNullOrWhiteSpace(keyVaultUri))
 {
-    builder.Configuration.AddAzureKeyVault(
-        new Uri(keyVaultUri),
-        new DefaultAzureCredential(),   // <- system-assigned Managed Identity
-        new KeyVaultSecretManager());
+    var loaded = false;
+    for (var attempt = 1; attempt <= 3 && !loaded; attempt++)
+    {
+        try
+        {
+            builder.Configuration.AddAzureKeyVault(
+                new Uri(keyVaultUri),
+                new DefaultAzureCredential(),   // <- system-assigned Managed Identity
+                new KeyVaultSecretManager());
+            loaded = true;
+        }
+        catch (Exception ex) when (attempt < 3)
+        {
+            var delay = TimeSpan.FromSeconds(Math.Pow(2, attempt));
+            Console.Error.WriteLine(
+                $"[KeyVault] attempt {attempt} failed: {ex.Message}. Retrying in {delay.TotalSeconds}s...");
+            await Task.Delay(delay);
+        }
+    }
 }
 ```
 
@@ -188,6 +204,37 @@ if (!string.IsNullOrWhiteSpace(keyVaultUri))
 Managed Identity. No `ClientId` or `ClientSecret` is supplied; Azure grants secret
 access via the identity attached to the running compute. The JWT signing key is
 loaded at startup and never written to logs, env vars, or disk.
+Retry logic (3 attempts, 2s / 4s back-off) prevents a transient Key Vault blip
+from killing a cold start.
+
+---
+
+### 2g. Security hardening — 4 issues fixed
+
+| # | Issue | Fix | File |
+|---|-------|-----|------|
+| 1 | `localStorage` is XSS-vulnerable | Moved token to a private `AuthService` field (in-memory only) | `auth.service.ts` |
+| 2 | No frontend token expiry check | `isLoggedIn()` decodes the JWT `exp` claim with `atob()` and rejects expired tokens before any request | `auth.service.ts` |
+| 3 | Key Vault outage = cold-start failure | Added 3-attempt exponential back-off loop around `AddAzureKeyVault` | `QuotesApi/Program.cs` |
+| 4 | 401s retried 3× (7 s delay) | `retryInterceptor` calls `throwError()` immediately for any 4xx status | `retry.interceptor.ts` |
+
+**`auth.service.ts` — in-memory storage + expiry decode:**
+```typescript
+@Injectable({ providedIn: 'root' })
+export class AuthService {
+  private token: string | null = null;
+  setToken(token: string): void { this.token = token; }
+  clearToken(): void { this.token = null; }
+  getToken(): string | null { return this.token; }
+  isLoggedIn(): boolean {
+    if (!this.token) return false;
+    try {
+      const payload = JSON.parse(atob(this.token.split('.')[1]));
+      return typeof payload.exp === 'number' && payload.exp * 1000 > Date.now();
+    } catch { return false; }
+  }
+}
+```
 
 ---
 
